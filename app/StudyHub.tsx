@@ -27,6 +27,7 @@ const weeks: Week[] = [
       { label: "CS285 · Actor-Critic", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-6.pdf" },
       { label: "CS285 · Advanced Policy Gradients I", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-9.pdf" },
       { label: "CS285 · Advanced Policy Gradients II", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-10.pdf" },
+      { label: "视频：CS285 Fall 2023 全部课程录像", href: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps" },
     ],
     checklist: [
       "把 prompt + 已生成 token 映射为 state，把下一个 token 映射为 action。",
@@ -47,6 +48,7 @@ const weeks: Week[] = [
       { label: "CS224R · RL for Reasoning", href: "https://cs224r.stanford.edu/spring_2025/slides/10_cs224r-rl_for_reasoning_lecture.pdf" },
       { label: "CS285 · LLM RL", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-14.pdf" },
       { label: "CS285 · Homework 4（先读第 1–3 节）", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" },
+      { label: "视频：LLM Agents Lecture 2 · Learning to reason", href: "https://www.youtube.com/live/_MNlLhU33H0" },
     ],
     checklist: [
       "区分 SFT、DPO、RLHF + PPO、GRPO 的训练信号和采样成本。",
@@ -65,6 +67,7 @@ const weeks: Week[] = [
       { label: "CS285 · Homework 4（读第 4–8 节）", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" },
       { label: "官方 starter code", href: "https://github.com/berkeleydeeprlcourse/homework_spring2026" },
       { label: "CS285 · LLM RL 回看", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-14.pdf" },
+      { label: "视频：CS285 Fall 2023 录像列表（按 Lecture 14 查找 LLM RL）", href: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps" },
     ],
     checklist: [
       "先跑最小 smoke test，确认 tokenizer、rollout、reward 与日志闭环。",
@@ -82,6 +85,7 @@ const weeks: Week[] = [
     resources: [
       { label: "CS285 · Homework 4：math-hard / diagnostics", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" },
       { label: "Berkeley · Advanced LLM Agents", href: "https://rdi.berkeley.edu/adv-llm-agents/sp25" },
+      { label: "视频：LLM Agents Lecture 1 · Inference-time reasoning", href: "https://www.youtube.com/live/g0Dwtf3BH-0" },
       { label: "CS285 课程主页", href: "https://rail.eecs.berkeley.edu/deeprlcourse/" },
     ],
     checklist: [
