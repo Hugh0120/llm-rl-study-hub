@@ -132,7 +132,7 @@ export function StudyHub() {
           <p className="kicker">FOR ALGORITHM ENGINEERS · 4 WEEKS</p>
           <h1>把大模型<br /><em>后训练</em>做成能力。</h1>
           <p className="hero-copy">一条删去传统 RL 冗余内容的四周路径：从策略梯度直达 PPO、RLHF、GRPO 与可验证推理训练。</p>
-          <div className="hero-actions"><a className="button primary" href="#roadmap">开始第 1 周 <span>↓</span></a><a className="button ghost" href="https://rail.eecs.berkeley.edu/deeprlcourse/" target="_blank" rel="noreferrer">CS285 官网 ↗</a></div>
+          <div className="hero-actions"><a className="button primary" href="/week1.html">阅读第 1 周中文精读 <span>↗</span></a><a className="button ghost" href="#roadmap">查看四周路线 ↓</a></div>
         </div>
         <aside className="progress-card" aria-label="学习进度">
           <div><p className="label">YOUR PROGRESS</p><strong>{progress}%</strong></div>

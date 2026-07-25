@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="面向算法工程师的 CS285 第一周中文精读：从策略梯度、Advantage、GAE 到 PPO。">
+  <title>第一周｜从策略梯度到 PPO 的中文精读</title>
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+      chtml: { scale: 0.96 },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  <style>
+    :root{--paper:#f7f6f0;--ink:#111612;--muted:#657067;--line:#d7dacf;--deep:#173b35;--acid:#d8ff47;--code:#151a16}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.78 Arial,"Microsoft YaHei",sans-serif}
+    a{color:var(--deep);text-decoration-thickness:1px;text-underline-offset:3px}.top{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:18px;padding:13px max(22px,5vw);background:#101511f2;color:#f7f6f0;border-bottom:1px solid #354238;backdrop-filter:blur(10px)}
+    .top a{color:inherit;text-decoration:none}.brand{font-size:12px;font-weight:900;letter-spacing:.14em;margin-right:auto}.top .primary{background:var(--acid);color:var(--ink);padding:7px 10px;font-weight:800}
+    .progress{position:fixed;left:0;top:0;height:3px;background:var(--acid);z-index:20;width:0}.hero{padding:84px max(24px,calc((100vw - 1040px)/2)) 66px;background:var(--deep);color:#f7f6f0}
+    .hero small{color:var(--acid);font-weight:800;letter-spacing:.13em}.hero h1{font-size:clamp(46px,7vw,90px);line-height:.95;letter-spacing:-.06em;max-width:920px;margin:22px 0 28px}.hero p{max-width:720px;color:#d5dfd5;font-size:19px}
+    .layout{display:grid;grid-template-columns:minmax(0,760px) 230px;gap:56px;max-width:1080px;margin:0 auto;padding:70px 24px 120px}
+    article{min-width:0}article>h1:first-child,article>blockquote:first-of-type{display:none}h1,h2,h3{line-height:1.2;letter-spacing:-.035em;scroll-margin-top:75px}h1{font-size:42px;margin:72px 0 20px;border-top:1px solid var(--line);padding-top:52px}h2{font-size:28px;margin:46px 0 15px}h3{font-size:21px;margin:34px 0 12px}p{margin:13px 0}hr{border:0;border-top:1px solid var(--line);margin:55px 0}
+    blockquote{margin:22px 0;padding:18px 22px;background:#e7eadf;border-left:4px solid var(--deep);color:#39443b}blockquote p{margin:5px 0}
+    table{border-collapse:collapse;width:100%;font-size:15px;margin:24px 0;display:block;overflow:auto}th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}th{background:#e7eadf}
+    code{font-family:"Cascadia Code",Consolas,monospace;font-size:.9em;background:#e8ebe2;padding:2px 5px;border-radius:3px}pre{background:var(--code);color:#ecf3e9;padding:20px;overflow:auto;border-radius:5px;line-height:1.55}pre code{background:none;padding:0}
+    .math-block{overflow-x:auto;margin:24px 0;padding:18px 12px;background:#fff;border:1px solid var(--line);text-align:center}.math-inline{white-space:nowrap}
+    aside{position:sticky;top:90px;height:max-content;border-left:1px solid var(--line);padding-left:20px}aside strong{display:block;font-size:11px;letter-spacing:.12em;margin-bottom:11px;color:var(--muted)}aside a{display:block;font-size:13px;line-height:1.35;margin:0 0 10px;text-decoration:none;color:var(--muted)}aside a:hover{color:var(--deep)}
+    .note{background:#111612;color:#e6eee5;padding:28px;margin-top:58px}.note b{color:var(--acid)}footer{background:#101511;color:#aeb7ae;padding:24px max(24px,5vw);font-size:12px}
+    @media(max-width:860px){.layout{grid-template-columns:1fr}.layout aside{display:none}.top .hide-mobile{display:none}.hero{padding-top:64px}body{font-size:16px}.math-block{text-align:left}}
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  <nav class="top"><a class="brand" href="/">LLM / RL STUDY HUB</a><a class="hide-mobile" href="#content">中文精读</a><a class="primary" href="https://rail.eecs.berkeley.edu/deeprlcourse/" target="_blank" rel="noreferrer">CS285 官网 ↗</a></nav>
+  <header class="hero"><small>WEEK 01 · CHINESE STUDY EDITION</small><h1>从策略梯度到 PPO</h1><p>把五份 CS285 课件重组为一条完整问题链：怎样利用带奖励的回答更新语言模型，同时避免一次更新让策略跑偏？</p></header>
+  <main class="layout" id="content"><article><h1>第一周：从策略梯度到 PPO 的中文精读</h1>
+<blockquote>
+<p>适用对象：已有深度学习、Transformer 和基本概率论背景的算法工程师。</p>
+<p>这不是把 146 页 slide 逐页机翻后堆在一起，而是按一条问题链重组：<strong>怎样利用带奖励的回答更新语言模型，同时不让模型因为一次更新而跑偏？</strong></p>
+</blockquote>
+<h2>本周的最终产出</h2>
+<p>读完后，你应能不用公式稿讲清楚下面这条链：</p>
+<p><code>prompt -&gt; rollout -&gt; reward/verifier -&gt; advantage -&gt; policy update -&gt; KL / clip guardrail</code></p>
+<p>并能解释：</p>
+<ol>
+<li>为什么 LLM 的后训练可以看作 RL；</li>
+<li>为什么 REINFORCE 的梯度是“提高好动作概率、降低坏动作概率”；</li>
+<li>为什么只用最终 reward 会有巨大方差；</li>
+<li>critic、advantage、GAE 分别解决什么问题；</li>
+<li>PPO 的 ratio、clipping、KL 约束到底在限制什么；</li>
+<li>为什么 GRPO 可以被理解为“把 value baseline 换成同题样本组的相对基线”。</li>
+</ol>
+<hr>
+<h2>0. 本周材料与阅读顺序</h2>
+<p>不要依次从第一页翻到最后一页。按下列顺序读；每一段都有一个明确问题。</p>
+<table>
+<thead>
+<tr>
+<th>顺序</th>
+<th>要回答的问题</th>
+<th>课件</th>
+<th>重点页</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>RL 的对象和目标是什么？</td>
+<td><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-4.pdf">L4 Reinforcement Learning Basics</a></td>
+<td>5–15、18–26、34–39</td>
+</tr>
+<tr>
+<td>2</td>
+<td>如何对“采样出来的序列”求导？</td>
+<td><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-5.pdf">L5 Policy Gradients</a></td>
+<td>3–7、10–18、20–23</td>
+</tr>
+<tr>
+<td>3</td>
+<td>如何把高方差回报变成可用的学习信号？</td>
+<td><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-6.pdf">L6 Actor-Critic</a></td>
+<td>3–10、20–25</td>
+</tr>
+<tr>
+<td>4</td>
+<td>为什么同一批 rollout 不能无限复用？</td>
+<td><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-9.pdf">L9 Off-Policy Policy Gradient</a></td>
+<td>3–16</td>
+</tr>
+<tr>
+<td>5</td>
+<td>PPO / TRPO 为什么需要 trust region？</td>
+<td><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-10.pdf">L10 Advanced Policy Gradient</a></td>
+<td>6–22、24–33</td>
+</tr>
+</tbody></table>
+<p>视频与课件的一一链接请看学习站中的“SLIDES ↔ MATCHED VIDEO”区域；CS285 的公开录像是 Fall 2023 版，因此 L4/L5/L6/L9 可按同讲次观看，L10 的旧版没有拆分 Part II。</p>
+<hr>
+<h1>第一章：先把 LLM 后训练写成一个 MDP</h1>
+<p>对应：L4 第 5–15 页。</p>
+<p>强化学习不是“有 reward 的监督学习”。关键差异是：<strong>当前动作会影响未来会看见什么状态，也会影响未来能拿到的 reward。</strong></p>
+<p>一个 MDP 写作：</p>
+<div class="math-block">\[
+\mathcal M=(\mathcal S,\mathcal A, P, r, \rho_0, \gamma)
+\]</div>
+<ul>
+<li><span class="math-inline">\(s_t\)</span>：时刻 <span class="math-inline">\(t\)</span> 的状态；</li>
+<li><span class="math-inline">\(a_t\)</span>：策略在该状态选择的动作；</li>
+<li><span class="math-inline">\(P(s_{t+1}\mid s_t,a_t)\)</span>：环境转移；</li>
+<li><span class="math-inline">\(r_t=r(s_t,a_t)\)</span>：即时奖励；</li>
+<li><span class="math-inline">\(\rho_0\)</span>：初始状态分布；</li>
+<li><span class="math-inline">\(\gamma\in(0,1]\)</span>：折扣系数。</li>
+</ul>
+<h2>1.1 语言模型版本的 MDP</h2>
+<p>对一个 prompt <span class="math-inline">\(x\)</span> 和生成序列 <span class="math-inline">\(y_1,\ldots,y_T\)</span>：</p>
+<table>
+<thead>
+<tr>
+<th>通用 RL</th>
+<th>LLM 后训练中的含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>状态 <span class="math-inline">\(s_t\)</span></td>
+<td><span class="math-inline">\((x,y_{<t})\)</span>：prompt 加上已生成前缀</td>
+</tr>
+<tr>
+<td>动作 <span class="math-inline">\(a_t\)</span></td>
+<td>下一个 token <span class="math-inline">\(y_t\)</span></td>
+</tr>
+<tr>
+<td>策略 <span class="math-inline">\(\pi_\theta(a_t\mid s_t)\)</span></td>
+<td>模型的 next-token softmax 分布</td>
+</tr>
+<tr>
+<td>转移 <span class="math-inline">\(P\)</span></td>
+<td>把 token 追加到前缀；通常近似确定性</td>
+</tr>
+<tr>
+<td>轨迹 <span class="math-inline">\(\tau\)</span></td>
+<td>一整条回答 <span class="math-inline">\((x,y_{1:T})\)</span></td>
+</tr>
+<tr>
+<td>reward</td>
+<td>reward model 分数、规则 verifier、单测结果、格式奖励等</td>
+</tr>
+</tbody></table>
+<p>这张表是本周最重要的翻译。之后看到 value、advantage、PPO ratio，都先把它们代回“某个回答前缀上的下一个 token”。</p>
+<h3>一个容易忽略的点</h3>
+<p>环境转移对 LLM 通常不是难点：生成 <code>a_t</code> 之后，下一个状态就是把它拼到上下文里。但<strong>策略会改变训练数据本身</strong>：模型更新后，会采到不同的 token、不同的推理路径和不同长度的回答。这正是 RL 比监督微调难的根源。</p>
+<h2>1.2 轨迹分布与优化目标</h2>
+<p>一条轨迹的概率为：</p>
+<div class="math-block">\[
+p_\theta(\tau)=\rho_0(s_1)\prod_{t=1}^{T}\pi_\theta(a_t\mid s_t)P(s_{t+1}\mid s_t,a_t).
+\]</div>
+<p>我们希望最大化期望累计回报：</p>
+<div class="math-block">\[
+J(\theta)=\mathbb E_{\tau\sim p_\theta(\tau)}[R(\tau)],\qquad
+R(\tau)=\sum_{t=1}^{T}\gamma^{t-1}r_t.
+\]</div>
+<p>对数学题 verifier，常见 <span class="math-inline">\(R\)</span> 是最终答案正确时的 <span class="math-inline">\(1\)</span>，否则 <span class="math-inline">\(0\)</span>。对 RLHF，<span class="math-inline">\(R\)</span> 往往来自 reward model。注意：即使奖励只在最后给出，<strong>每一个生成 token 都参与决定了该最终奖励</strong>。</p>
+<h3>为什么不是直接把 reward 当 label？</h3>
+<p>监督学习有固定 <span class="math-inline">\((x,y)\)</span>；RL 的 <span class="math-inline">\(y\)</span> 来自当前 <span class="math-inline">\(\pi_\theta\)</span>。你真正要调整的是“采到这条回答的概率”，而不是把一个标量 reward 伪装成 token 标签。</p>
+<hr>
+<h1>第二章：REINFORCE —— 让高回报轨迹更可能出现</h1>
+<p>对应：L5 第 3–12 页。</p>
+<h2>2.1 关键技巧：log-derivative trick</h2>
+<p>我们不能直接对采样动作求导，但可以利用：</p>
+<div class="math-block">\[
+\nabla_\theta p_\theta(\tau)
+=p_\theta(\tau)\nabla_\theta\log p_\theta(\tau).
+\]</div>
+<p>因此：</p>
+<div class="math-block">\[
+\begin{aligned}
+\nabla_\theta J(\theta)
+&=\mathbb E_{\tau\sim p_\theta}
+\left[R(\tau)\nabla_\theta\log p_\theta(\tau)\right]\\
+&=\mathbb E_{\tau\sim p_\theta}
+\left[R(\tau)\sum_t\nabla_\theta\log\pi_\theta(a_t\mid s_t)\right].
+\end{aligned}
+\]</div>
+<p>第二行成立的原因是：初始状态分布和环境转移不含 <span class="math-inline">\(\theta\)</span>，求导后只剩策略项。这正是 L5 第 5–6 页红线划掉环境项的含义。</p>
+<h2>2.2 把公式翻成工程语言</h2>
+<p>对一次 rollout：</p>
+<pre><code class="language-text">若整条回答 reward 高：
+    增大这条回答中每个已采样 token 的 log probability
+若整条回答 reward 低：
+    降低这些 token 的 log probability
+</code></pre>
+<p>对应的最小损失可写作：</p>
+<div class="math-block">\[
+\mathcal L_{\text{REINFORCE}}
+=-\frac{1}{N}\sum_{i=1}^{N}\sum_t G_t^{(i)}
+\log\pi_\theta(a_t^{(i)}\mid s_t^{(i)}),
+\]</div>
+<p>其中 <span class="math-inline">\(G_t=\sum_{k=t}^{T}\gamma^{k-t}r_k\)</span> 是 <strong>reward-to-go</strong>。</p>
+<h3>reward-to-go 为什么比整条回报更合理？</h3>
+<p>在时刻 <span class="math-inline">\(t\)</span>，动作 <span class="math-inline">\(a_t\)</span> 不可能影响它发生前的 reward。因此用完整 <span class="math-inline">\(R(\tau)\)</span> 给它打分，会把过去的随机性错误归因给当前动作。reward-to-go 只保留未来可受影响的部分，估计仍无偏，但噪声更低。这是 L5 第 18 页的“causality”。</p>
+<h2>2.3 REINFORCE 与 SFT 的差别</h2>
+<p>两者的代码表面都像 <code>-weight * logprob</code>，但语义不同：</p>
+<table>
+<thead>
+<tr>
+<th>SFT</th>
+<th>REINFORCE</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>token 来自人类/离线数据</td>
+<td>token 来自当前模型 rollout</td>
+</tr>
+<tr>
+<td>权重通常为正的 token mask</td>
+<td>权重是可正可负的 return/advantage</td>
+</tr>
+<tr>
+<td>目标：复现参考答案</td>
+<td>目标：改变采样分布以提高期望 reward</td>
+</tr>
+<tr>
+<td>数据分布不随当前模型改变</td>
+<td>模型一更新，下一批数据分布就变</td>
+</tr>
+</tbody></table>
+<p>所以不能把 RL loss 当作“带一个 reward 权重的交叉熵”就结束；后面所有稳定化机制都在处理这个分布耦合问题。</p>
+<hr>
+<h1>第三章：从回报到 Advantage —— 解决 credit assignment 与高方差</h1>
+<p>对应：L5 第 14–18 页、L6 第 3–25 页。</p>
+<h2>3.1 为什么 raw return 不够用</h2>
+<p>考虑两条回答都答对，最终 reward 都为 1：</p>
+<ul>
+<li>第一条是模型在简单题上本来就会的；</li>
+<li>第二条是在很难的题上偶然推对了。</li>
+</ul>
+<p>如果都乘 1，更新会把第一条中本就高概率的普通 token 也强力推高。真正有用的问题是：<strong>这个动作比模型在这个状态下的正常水平好多少？</strong></p>
+<p>定义：</p>
+<div class="math-block">\[
+V^\pi(s)=\mathbb E_\pi[G_t\mid s_t=s],\qquad
+Q^\pi(s,a)=\mathbb E_\pi[G_t\mid s_t=s,a_t=a],
+\]</div>
+<div class="math-block">\[
+A^\pi(s,a)=Q^\pi(s,a)-V^\pi(s).
+\]</div>
+<ul>
+<li><span class="math-inline">\(V\)</span>：看到该前缀时，模型平均还能拿多少分；</li>
+<li><span class="math-inline">\(Q\)</span>：此刻选定某 token 后，平均还能拿多少分；</li>
+<li><span class="math-inline">\(A\)</span>：这个 token 是否超出该前缀下的“正常发挥”。</li>
+</ul>
+<h2>3.2 baseline 为什么不改变正确答案</h2>
+<p>对任意只依赖状态、而不依赖当前动作的 <span class="math-inline">\(b(s_t)\)</span>：</p>
+<div class="math-block">\[
+\mathbb E_{a_t\sim\pi_\theta}
+[b(s_t)\nabla_\theta\log\pi_\theta(a_t\mid s_t)]=0.
+\]</div>
+<p>因此可以把 <span class="math-inline">\(G_t\)</span> 换成 <span class="math-inline">\(G_t-b(s_t)\)</span>，期望梯度不变。取 <span class="math-inline">\(b=V_\phi\)</span> 后就是 advantage。直觉上，baseline 只是“同一状态的平均线”：超过平均线才鼓励，低于平均线才抑制。</p>
+<h2>3.3 actor 与 critic 各做什么</h2>
+<ul>
+<li><strong>Actor</strong>：<span class="math-inline">\(\pi_\theta\)</span>，决定下一个 token；</li>
+<li><strong>Critic</strong>：<span class="math-inline">\(V_\phi\)</span>，预测当前前缀的预期回报；</li>
+<li><strong>Actor loss</strong>：用 <span class="math-inline">\(\hat A_t\)</span> 加权更新 token 概率；</li>
+<li><strong>Critic loss</strong>：拟合回报，例如 <span class="math-inline">\(\|V_\phi(s_t)-G_t\|^2\)</span>。</li>
+</ul>
+<p>critic 不是 reward model。reward model / verifier 定义“什么算好”；critic 只是学习预测“当前策略在这个状态大概会拿几分”，服务于低方差更新。</p>
+<h2>3.4 TD、n-step 与 GAE</h2>
+<p>只等到整条回答结束再算 <span class="math-inline">\(G_t\)</span> 是 Monte Carlo：无偏但方差高。只看一步 TD residual：</p>
+<div class="math-block">\[
+\delta_t=r_t+\gamma V_\phi(s_{t+1})-V_\phi(s_t)
+\]</div>
+<p>方差低，但 critic 不准会引入偏差。</p>
+<p>GAE 用 <span class="math-inline">\(\lambda\)</span> 在两者之间插值：</p>
+<div class="math-block">\[
+\hat A_t^{\text{GAE}(\gamma,\lambda)}
+=\sum_{l=0}^{T-t-1}(\gamma\lambda)^l\delta_{t+l}.
+\]</div>
+<ul>
+<li><span class="math-inline">\(\lambda\to1\)</span>：更接近 Monte Carlo，偏差小、方差大；</li>
+<li><span class="math-inline">\(\lambda\to0\)</span>：更接近一步 TD，方差小、但更依赖 critic；</li>
+<li>实践中常从 <span class="math-inline">\(\gamma\approx1\)</span>、<span class="math-inline">\(\lambda\in[0.9,0.97]\)</span> 开始，而不是把它们当神奇常数。</li>
+</ul>
+<p>L6 第 24 页的图表达的正是：把不同 n-step return 按指数衰减权重混合，而不是硬选一个 n。</p>
+<h2>3.5 LLM 场景的 advantage</h2>
+<p>若只有最终 verifier reward，token 级 advantage 会非常稀疏。常见选择：</p>
+<ol>
+<li>PPO/RLHF：训练 value head，以 GAE 得到 token 级 <span class="math-inline">\(\hat A_t\)</span>；</li>
+<li>GRPO：对同一 prompt 采样一组回答，用组内相对 reward 构造基线，避免单独训练 value model；</li>
+<li>结果奖励之外加可控的过程/格式奖励，但必须警惕模型投机 reward。</li>
+</ol>
+<hr>
+<h1>第四章：为什么要 PPO —— 同一批 rollout 不能随便多训</h1>
+<p>对应：L9 全部、L10 第 6–22 页。</p>
+<h2>4.1 on-policy 的限制</h2>
+<p>REINFORCE / on-policy actor-critic 假设样本来自当前策略 <span class="math-inline">\(\pi_{\theta_{old}}\)</span>。一旦连续更新多步，当前策略变成 <span class="math-inline">\(\pi_\theta\)</span>，它与采样策略不同；直接把旧样本当新样本优化，会产生 distribution mismatch。</p>
+<p>重要性采样给出修正比率：</p>
+<div class="math-block">\[
+r_t(\theta)=
+\frac{\pi_\theta(a_t\mid s_t)}
+{\pi_{\theta_{old}}(a_t\mid s_t)}
+=\exp(\log\pi_\theta-\log\pi_{\theta_{old}}).
+\]</div>
+<p>对应 surrogate objective：</p>
+<div class="math-block">\[
+L^{\text{IS}}(\theta)=
+\mathbb E_t[r_t(\theta)\hat A_t].
+\]</div>
+<p>它允许旧 rollout 在新策略下仍被利用，但有一个致命问题：当 ratio 离 1 很远时，估计方差会爆炸，少数 token 会主导更新。</p>
+<h2>4.2 PPO clip 的精确含义</h2>
+<p>PPO 的常用目标是：</p>
+<div class="math-block">\[
+L^{\text{clip}}(\theta)=
+\mathbb E_t\left[
+\min\left(r_t\hat A_t,
+\operatorname{clip}(r_t,1-\epsilon,1+\epsilon)\hat A_t\right)
+\right].
+\]</div>
+<p>它不是“把 ratio 直接截断然后照常最大化”这么简单；外层的 <code>min</code> 使它成为一个保守目标：</p>
+<ul>
+<li><span class="math-inline">\(\hat A_t>0\)</span> 时，如果新策略已经把这个好 token 的概率提高超过 <span class="math-inline">\(1+\epsilon\)</span>，继续提高不再获得额外收益；</li>
+<li><span class="math-inline">\(\hat A_t<0\)</span> 时，如果新策略已把这个坏 token 的概率压低超过 <span class="math-inline">\(1-\epsilon\)</span>，继续压低也不再获得额外收益。</li>
+</ul>
+<p>因此 PPO 是在说：<strong>这批数据只允许你在旧策略附近改进一点。</strong></p>
+<h2>4.3 KL 为什么仍然必须监控</h2>
+<p>clip 约束的是单个 token 的 ratio，不能严格保证整体策略分布距离小。L10 进一步从 trust region 出发，限制：</p>
+<div class="math-block">\[
+\mathbb E_{s\sim d_{\pi_{old}}}
+[D_{\mathrm{KL}}(\pi_{old}(\cdot\mid s)\|\pi_\theta(\cdot\mid s))]
+\le \delta.
+\]</div>
+<p>实践中常见总损失可以写成：</p>
+<div class="math-block">\[
+\mathcal L=
+-L^{\text{clip}}
++c_v\mathcal L_{value}
+-c_e\mathcal H(\pi)
++\beta\,\mathrm{KL}(\pi_\theta\|\pi_{ref}).
+\]</div>
+<ul>
+<li>value loss：让 critic 可用；</li>
+<li>entropy bonus：避免过早变得确定；</li>
+<li>KL to reference：不让已训练好的语言能力因奖励优化而漂移过远。</li>
+</ul>
+<p>在 LLM RL 中，<code>old policy</code> 与 <code>reference policy</code> 不是同一个概念：前者用于这一个 PPO batch 的 importance ratio；后者通常是 SFT 模型，用于长期行为锚定。</p>
+<h2>4.4 TRPO 与 natural gradient 要记住什么</h2>
+<p>L10 后半段给出更理论化的视角：普通梯度以参数欧氏距离衡量步长，但神经网络参数的“小变化”不一定代表策略分布变化小。Fisher information 定义的 natural gradient 更关心输出分布的实际变化。</p>
+<p>你不需要本周实现 TRPO，但应理解它和 PPO 的共同核心：<strong>限制策略函数空间中的改变量，而不是迷信参数空间中的学习率。</strong></p>
+<hr>
+<h1>第五章：把整条链放回 LLM RL 训练循环</h1>
+<p>下面是本周应能读懂的概念伪代码：</p>
+<pre><code class="language-python"># old_policy 用来采样和计算 ratio；reference_policy 用来施加长期 KL 锚定
+rollouts = sample(old_policy, prompts, temperature=...)
+rewards = verifier_or_reward_model(prompts, rollouts)
+
+# PPO: value head + GAE；GRPO: 同 prompt 的 group-relative reward
+advantages, returns = estimate_advantage(rollouts, rewards, value_model)
+
+for epoch in range(num_epochs):
+    logp = policy.logprob(rollouts.tokens)
+    ratio = exp(logp - rollouts.old_logp)
+    policy_loss = -mean(min(ratio * advantages,
+                            clip(ratio, 1-eps, 1+eps) * advantages))
+    value_loss = mse(value_model(rollouts.states), returns)
+    kl_loss = mean(logp - reference_policy.logprob(rollouts.tokens))
+    loss = policy_loss + c_v * value_loss + beta * kl_loss
+    loss.backward(); optimizer.step()
+</code></pre>
+<p>训练日志至少同时看：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>你在问什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>verifier/reward 均值</td>
+<td>模型是否真的在任务上变好？</td>
+</tr>
+<tr>
+<td>KL to reference</td>
+<td>是否以牺牲原有分布换 reward？</td>
+</tr>
+<tr>
+<td>clip fraction / ratio 分布</td>
+<td>单次更新是否过大？</td>
+</tr>
+<tr>
+<td>advantage 均值与标准差</td>
+<td>归一化、reward 标度是否异常？</td>
+</tr>
+<tr>
+<td>value loss / explained variance</td>
+<td>critic 是在帮助还是在制造偏差？</td>
+</tr>
+<tr>
+<td>response length、格式通过率、样例</td>
+<td>是否出现 reward hacking？</td>
+</tr>
+</tbody></table>
+<hr>
+<h1>第六章：本周的三个常见误解</h1>
+<h2>误解 1：PPO 就是“带 clip 的交叉熵”</h2>
+<p>不对。PPO 的本质是旧策略采样下的 surrogate policy improvement；clip 是为了控制复用旧 rollout 时的策略漂移。没有 <code>old_logp</code>、advantage 和 rollout 分布，只有一个 clipped cross-entropy 并不等于 PPO。</p>
+<h2>误解 2：value model 就是 reward model</h2>
+<p>不对。reward model 评价一个回答的偏好或质量；value model 预测当前策略从一个前缀继续生成的期望回报。前者定义优化方向，后者主要降低估计方差。</p>
+<h2>误解 3：reward 上升就说明模型更强</h2>
+<p>不一定。模型可能学会输出更长、钻格式 verifier 空子、利用 reward model 的漏洞，或因为 KL 太弱而丢失通用能力。必须结合 held-out verifier、人工样例和 KL/长度曲线判断。</p>
+<hr>
+<h1>第七章：完成检查</h1>
+<p>在进入第二周的 RLHF / GRPO 前，请合上资料回答：</p>
+<ol>
+<li>写出 LLM token 生成对应的 <span class="math-inline">\(s_t,a_t,\pi_\theta,r_t\)</span>。</li>
+<li>从 <span class="math-inline">\(J(\theta)=\mathbb E[R]\)</span> 推到 <span class="math-inline">\(\mathbb E[\nabla\log\pi\,R]\)</span>，并说明环境项为何消失。</li>
+<li>用一句话区分 return、value、Q-value、advantage。</li>
+<li>为什么 state-only baseline 不会改变期望 policy gradient？</li>
+<li><span class="math-inline">\(\lambda\)</span> 从 1 降到 0 时，GAE 的偏差和方差如何变化？</li>
+<li>写出 PPO ratio；当 <span class="math-inline">\(A>0\)</span> 且 ratio 超过 <span class="math-inline">\(1+\epsilon\)</span> 时，梯度为何被抑制？</li>
+<li>分别解释 <code>old policy</code> 和 <code>reference policy</code> 在 LLM PPO 中的用途。</li>
+</ol>
+<p>如果第 2、4、6、7 题说不清，先回看对应 slide 和录像；如果都能说清，就可以开始第二周的偏好优化、verifier 与 GRPO。</p>
+<div class="note"><b>阅读建议：</b>先连续读完第一至第四章，再回到公式推导；每章结束后用自己的 LLM 任务代入 state、action、reward 和 advantage。</div></article><aside id="toc"><strong>本页目录</strong></aside></main>
+  <footer>LLM / RL STUDY HUB · 第一周中文精读 · 公式由 MathJax 渲染</footer>
+  <script>
+    const headings=[...document.querySelectorAll('article h1,article h2')];
+    const toc=document.getElementById('toc');
+    headings.forEach((h,i)=>{h.id='section-'+i;const a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;a.style.paddingLeft=h.tagName==='H2'?'12px':'0';toc.appendChild(a)});
+    addEventListener('scroll',()=>{const d=document.documentElement;document.getElementById('progress').style.width=(d.scrollTop/(d.scrollHeight-d.clientHeight)*100)+'%'},{passive:true});
+  </script>
+</body>
+</html>
