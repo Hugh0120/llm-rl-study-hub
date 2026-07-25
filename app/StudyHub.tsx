@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Resource = { label: string; href: string; note?: string };
+type Resource = { label: string; href: string; videoLabel?: string; videoHref?: string };
 type Week = {
   number: string;
   eyebrow: string;
@@ -22,12 +22,11 @@ const weeks: Week[] = [
     outcome: "建立从 token 概率到 reward-weighted update 的直觉。",
     hours: "12–15h",
     resources: [
-      { label: "CS285 · RL Basics", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-4.pdf" },
-      { label: "CS285 · Policy Gradients", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-5.pdf" },
-      { label: "CS285 · Actor-Critic", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-6.pdf" },
-      { label: "CS285 · Advanced Policy Gradients I", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-9.pdf" },
-      { label: "CS285 · Advanced Policy Gradients II", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-10.pdf" },
-      { label: "视频：CS285 Fall 2023 全部课程录像", href: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps" },
+      { label: "CS285 · RL Basics", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-4.pdf", videoLabel: "Fall 2023 · Lecture 4: Introduction to RL", videoHref: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=4" },
+      { label: "CS285 · Policy Gradients", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-5.pdf", videoLabel: "Fall 2023 · Lecture 5: Policy Gradients", videoHref: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=5" },
+      { label: "CS285 · Actor-Critic", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-6.pdf", videoLabel: "Fall 2023 · Lecture 6: Actor-Critic", videoHref: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=6" },
+      { label: "CS285 · Advanced Policy Gradients I", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-9.pdf", videoLabel: "Fall 2023 · Lecture 9: Advanced Policy Gradients", videoHref: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=9" },
+      { label: "CS285 · Advanced Policy Gradients II", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-10.pdf", videoLabel: "Fall 2023 · Lecture 9（最接近；课程版本拆分不同）", videoHref: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=9" },
     ],
     checklist: [
       "把 prompt + 已生成 token 映射为 state，把下一个 token 映射为 action。",
@@ -43,12 +42,11 @@ const weeks: Week[] = [
     outcome: "理解偏好奖励与结果验证器分别如何驱动训练。",
     hours: "12–15h",
     resources: [
-      { label: "CS224R · Reward Learning", href: "https://cs224r.stanford.edu/spring_2025/slides/08_cs224r_reward_learning_2025.pdf" },
-      { label: "CS224R · RLHF / Preference Optimization", href: "https://cs224r.stanford.edu/spring_2025/slides/09_cs224r-2025-rlhf.pdf" },
-      { label: "CS224R · RL for Reasoning", href: "https://cs224r.stanford.edu/spring_2025/slides/10_cs224r-rl_for_reasoning_lecture.pdf" },
-      { label: "CS285 · LLM RL", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-14.pdf" },
+      { label: "CS224R · Reward Learning", href: "https://cs224r.stanford.edu/spring_2025/slides/08_cs224r_reward_learning_2025.pdf", videoLabel: "Spring 2025 · Lecture 8: Reward Learning", videoHref: "https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=8" },
+      { label: "CS224R · RLHF / Preference Optimization", href: "https://cs224r.stanford.edu/spring_2025/slides/09_cs224r-2025-rlhf.pdf", videoLabel: "Spring 2025 · Lecture 9: RL for LLMs — Preference Optimization", videoHref: "https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=9" },
+      { label: "CS224R · RL for Reasoning", href: "https://cs224r.stanford.edu/spring_2025/slides/10_cs224r-rl_for_reasoning_lecture.pdf", videoLabel: "Spring 2025 · Lecture 10: RL for LLMs — Reasoning", videoHref: "https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=10" },
+      { label: "CS285 · LLM RL", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-14.pdf", videoLabel: "替代录像：CS224R L9/L10（CS285 同版录像未公开）", videoHref: "https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=9" },
       { label: "CS285 · Homework 4（先读第 1–3 节）", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" },
-      { label: "视频：LLM Agents Lecture 2 · Learning to reason", href: "https://www.youtube.com/live/_MNlLhU33H0" },
     ],
     checklist: [
       "区分 SFT、DPO、RLHF + PPO、GRPO 的训练信号和采样成本。",
@@ -66,8 +64,7 @@ const weeks: Week[] = [
     resources: [
       { label: "CS285 · Homework 4（读第 4–8 节）", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" },
       { label: "官方 starter code", href: "https://github.com/berkeleydeeprlcourse/homework_spring2026" },
-      { label: "CS285 · LLM RL 回看", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-14.pdf" },
-      { label: "视频：CS285 Fall 2023 录像列表（按 Lecture 14 查找 LLM RL）", href: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps" },
+      { label: "CS285 · LLM RL 回看", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-14.pdf", videoLabel: "替代录像：CS224R L9 · Preference Optimization", videoHref: "https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=9" },
     ],
     checklist: [
       "先跑最小 smoke test，确认 tokenizer、rollout、reward 与日志闭环。",
@@ -148,7 +145,7 @@ export function StudyHub() {
         <div className="section-heading"><div><p className="kicker">THE ROUTE</p><h2>四周，只保留<br />真正需要的内容。</h2></div><p>点击周卡切换内容。每份资料都跳转至课程官网，而非本地副本。</p></div>
         <div className="week-tabs" role="tablist" aria-label="学习周次">{weeks.map((item, index) => <button key={item.number} role="tab" aria-selected={active === index} className={active === index ? "active" : ""} onClick={() => setActive(index)}><span>{item.number}</span>{item.eyebrow}</button>)}</div>
         <article className="week-panel">
-          <div className="week-main"><p className="kicker">WEEK {week.number} · {week.hours}</p><h3>{week.title}</h3><p className="outcome">{week.outcome}</p><div className="resources"><p className="label">OFFICIAL MATERIALS</p>{week.resources.map((resource) => <a key={resource.href} href={resource.href} target="_blank" rel="noreferrer" className="resource-link"><span>↗</span>{resource.label}</a>)}</div></div>
+          <div className="week-main"><p className="kicker">WEEK {week.number} · {week.hours}</p><h3>{week.title}</h3><p className="outcome">{week.outcome}</p><div className="resources"><p className="label">SLIDES ↔ MATCHED VIDEO</p>{week.resources.map((resource) => <div className="resource-pair" key={resource.href}><a href={resource.href} target="_blank" rel="noreferrer" className="resource-link"><span>课件</span>{resource.label}</a>{resource.videoHref && <a href={resource.videoHref} target="_blank" rel="noreferrer" className="video-link"><span>视频</span>{resource.videoLabel}</a>}</div>)}</div></div>
           <div className="week-work"><p className="label">THIS WEEK, DO THIS</p><ul>{week.checklist.map((task, index) => { const key = `${active}-${index}`; return <li key={key}><button className={done[key] ? "check done" : "check"} aria-label={`标记任务 ${index + 1} 完成`} onClick={() => toggle(key)}>{done[key] ? "✓" : ""}</button><span>{task}</span></li>; })}</ul><div className="deliverable"><p className="label">STOP WHEN YOU HAVE</p><strong>{week.deliverable}</strong></div></div>
         </article>
       </section>

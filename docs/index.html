@@ -22,6 +22,9 @@
     .week-body { padding:26px; } .week h3 { margin:0 0 10px; font-size:30px; } .week p { margin:10px 0; }
     .links { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px; margin-top:18px; }
     .links a { border-bottom:1px solid var(--line); padding:8px 0; text-decoration:none; font-weight:700; } .links a:hover { color:var(--green); }
+    .pair-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; margin-top:22px; }
+    .pair { border:1px solid var(--line); padding:18px; } .pair h3 { margin:0 0 14px; font-size:20px; }
+    .pair a { display:block; padding:5px 0; color:var(--green); font-size:14px; font-weight:700; }
     .terms { background:#e3e7db; display:grid; grid-template-columns:repeat(4,1fr); gap:1px; padding:0!important; }
     .term { background:var(--paper); padding:34px max(24px,3vw); min-height:220px; } .term h3 { font-size:34px; margin:46px 0 8px; }
     .end { background:var(--green); color:var(--paper); } .end h2 { color:var(--acid); max-width:800px; }
@@ -53,6 +56,22 @@
         <a href="https://www.youtube.com/live/_MNlLhU33H0" target="_blank" rel="noreferrer">视频 · LLM Agents Lecture 2：Learning to reason ↗</a>
         <a href="https://www.youtube.com/live/g0Dwtf3BH-0" target="_blank" rel="noreferrer">视频 · LLM Agents Lecture 1：Inference-time reasoning ↗</a>
         <a href="https://llmagents-learning.org/sp25" target="_blank" rel="noreferrer">视频目录 · Berkeley Advanced LLM Agents MOOC ↗</a>
+      </div>
+    </section>
+
+    <section>
+      <div class="eyebrow">SLIDE ↔ VIDEO</div><h2>按课件编号看对应录像</h2>
+      <p class="muted">链接采用课程官方公开录像。CS285 的课件为 2026 版、公开录像为 2023 版，前四个主题可一一对应；Advanced PG II 的课程拆分不同，已标出最接近讲次。CS224R 的三张 LLM 课件与 2025 录像按同一讲次编号对应。</p>
+      <div class="pair-grid">
+        <article class="pair"><h3>CS285 L4 · RL Basics</h3><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-4.pdf" target="_blank">课件 PDF ↗</a><a href="https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=4" target="_blank">视频：Fall 2023 Lecture 4 · Introduction to RL ↗</a></article>
+        <article class="pair"><h3>CS285 L5 · Policy Gradients</h3><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-5.pdf" target="_blank">课件 PDF ↗</a><a href="https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=5" target="_blank">视频：Fall 2023 Lecture 5 · Policy Gradients ↗</a></article>
+        <article class="pair"><h3>CS285 L6 · Actor-Critic</h3><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-6.pdf" target="_blank">课件 PDF ↗</a><a href="https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=6" target="_blank">视频：Fall 2023 Lecture 6 · Actor-Critic ↗</a></article>
+        <article class="pair"><h3>CS285 L9 · Advanced Policy Gradients I</h3><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-9.pdf" target="_blank">课件 PDF ↗</a><a href="https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=9" target="_blank">视频：Fall 2023 Lecture 9 · Advanced Policy Gradients ↗</a></article>
+        <article class="pair"><h3>CS285 L10 · Advanced Policy Gradients II</h3><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-10.pdf" target="_blank">课件 PDF ↗</a><a href="https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=9" target="_blank">最接近视频：Fall 2023 Lecture 9（旧版未拆分 Part II）↗</a></article>
+        <article class="pair"><h3>CS224R L8 · Reward Learning</h3><a href="https://cs224r.stanford.edu/spring_2025/slides/08_cs224r_reward_learning_2025.pdf" target="_blank">课件 PDF ↗</a><a href="https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=8" target="_blank">视频：Spring 2025 Lecture 8 · Reward Learning ↗</a></article>
+        <article class="pair"><h3>CS224R L9 · RLHF / Preference Optimization</h3><a href="https://cs224r.stanford.edu/spring_2025/slides/09_cs224r-2025-rlhf.pdf" target="_blank">课件 PDF ↗</a><a href="https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=9" target="_blank">视频：Spring 2025 Lecture 9 · RL for LLMs: Preference Optimization ↗</a></article>
+        <article class="pair"><h3>CS224R L10 · RL for Reasoning</h3><a href="https://cs224r.stanford.edu/spring_2025/slides/10_cs224r-rl_for_reasoning_lecture.pdf" target="_blank">课件 PDF ↗</a><a href="https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=10" target="_blank">视频：Spring 2025 Lecture 10 · RL for LLMs: Reasoning ↗</a></article>
+        <article class="pair"><h3>CS285 L14 · LLM RL</h3><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-14.pdf" target="_blank">课件 PDF ↗</a><a href="https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=9" target="_blank">替代视频：CS224R L9 · Preference Optimization ↗</a></article>
       </div>
     </section>
 
