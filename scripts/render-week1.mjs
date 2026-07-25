@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import katex from "katex";
 
 const markedModule = process.env.MARKED_MODULE;
 if (!markedModule) throw new Error("MARKED_MODULE is required");
@@ -35,11 +36,17 @@ markdown = markdown.replace(/\\\([\s\S]*?\\\)/g, (formula) => {
 let body = await marked.parse(markdown, { gfm: true });
 body = body.replace(
   /<p>WEEKONEBLOCKMATH(\d+)END<\/p>/g,
-  (_, index) => `<div class="math-block">${displayMath[Number(index)]}</div>`,
+  (_, index) => {
+    const latex = displayMath[Number(index)].slice(2, -2).trim();
+    return `<div class="math-block">${katex.renderToString(latex, { displayMode: true, throwOnError: false })}</div>`;
+  },
 );
 body = body.replace(
   /WEEKONEINLINEMATH(\d+)END/g,
-  (_, index) => `<span class="math-inline">${inlineMath[Number(index)]}</span>`,
+  (_, index) => {
+    const latex = inlineMath[Number(index)].slice(2, -2).trim();
+    return `<span class="math-inline">${katex.renderToString(latex, { displayMode: false, throwOnError: false })}</span>`;
+  },
 );
 
 const html = `<!doctype html>
@@ -49,14 +56,7 @@ const html = `<!doctype html>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="面向算法工程师的 CS285 第一周中文精读：从策略梯度、Advantage、GAE 到 PPO。">
   <title>第一周｜从策略梯度到 PPO 的中文精读</title>
-  <script>
-    window.MathJax = {
-      tex: { inlineMath: [['\\\\(', '\\\\)']], displayMath: [['\\\\[', '\\\\]']] },
-      chtml: { scale: 0.96 },
-      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
-    };
-  </script>
-  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  <link rel="stylesheet" href="vendor/katex.min.css">
   <style>
     :root{--paper:#f7f6f0;--ink:#111612;--muted:#657067;--line:#d7dacf;--deep:#173b35;--acid:#d8ff47;--code:#151a16}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.78 Arial,"Microsoft YaHei",sans-serif}
@@ -80,7 +80,7 @@ const html = `<!doctype html>
   <nav class="top"><a class="brand" href="/">LLM / RL STUDY HUB</a><a class="hide-mobile" href="#content">中文精读</a><a class="primary" href="https://rail.eecs.berkeley.edu/deeprlcourse/" target="_blank" rel="noreferrer">CS285 官网 ↗</a></nav>
   <header class="hero"><small>WEEK 01 · CHINESE STUDY EDITION</small><h1>从策略梯度到 PPO</h1><p>把五份 CS285 课件重组为一条完整问题链：怎样利用带奖励的回答更新语言模型，同时避免一次更新让策略跑偏？</p></header>
   <main class="layout" id="content"><article>${body}<div class="note"><b>阅读建议：</b>先连续读完第一至第四章，再回到公式推导；每章结束后用自己的 LLM 任务代入 state、action、reward 和 advantage。</div></article><aside id="toc"><strong>本页目录</strong></aside></main>
-  <footer>LLM / RL STUDY HUB · 第一周中文精读 · 公式由 MathJax 渲染</footer>
+  <footer>LLM / RL STUDY HUB · 第一周中文精读 · 公式已预渲染</footer>
   <script>
     const headings=[...document.querySelectorAll('article h1,article h2')];
     const toc=document.getElementById('toc');
@@ -90,7 +90,16 @@ const html = `<!doctype html>
 </body>
 </html>`;
 
+const katexDist = path.join(projectDir, "node_modules", "katex", "dist");
 await Promise.all([
+  fs.mkdir(path.join(projectDir, "public", "vendor"), { recursive: true }),
+  fs.mkdir(path.join(projectDir, "docs", "vendor"), { recursive: true }),
+]);
+await Promise.all([
+  fs.copyFile(path.join(katexDist, "katex.min.css"), path.join(projectDir, "public", "vendor", "katex.min.css")),
+  fs.copyFile(path.join(katexDist, "katex.min.css"), path.join(projectDir, "docs", "vendor", "katex.min.css")),
+  fs.cp(path.join(katexDist, "fonts"), path.join(projectDir, "public", "vendor", "fonts"), { recursive: true }),
+  fs.cp(path.join(katexDist, "fonts"), path.join(projectDir, "docs", "vendor", "fonts"), { recursive: true }),
   fs.writeFile(path.join(projectDir, "public", "week1.html"), html, "utf8"),
   fs.writeFile(path.join(projectDir, "docs", "week1.html"), html, "utf8"),
 ]);
