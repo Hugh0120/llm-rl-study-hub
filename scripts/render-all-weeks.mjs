@@ -10,6 +10,8 @@ const projectDir = path.resolve(import.meta.dirname, "..");
 const pages = [
   {
     slug: "week1",
+    replacementSource: path.join(projectDir, "content", "week1-ch3-onward.md"),
+    replaceFrom: "\n# 第三章",
     source: path.resolve(projectDir, "..", "第一周-CS285-策略优化与PPO-中文精读.md"),
     label: "WEEK 01 · SELF-CONTAINED EDITION",
     title: "从策略梯度到 PPO",
@@ -19,7 +21,7 @@ const pages = [
     officialLabel: "CS285 官网 ↗",
     previous: null,
     next: "week2.html",
-    note: "先连续读完第一至第四章，再回到公式推导；每章结束后，用自己的 LLM 任务代入 state、action、reward 和 advantage。",
+    note: "如果你已读完前两章，请直接从第三章继续：正文先建立 baseline/value 的动机，再依次引出 TD、GAE 与 PPO；术语都在问题出现之后定义。",
   },
   {
     slug: "week2",
@@ -188,7 +190,15 @@ await Promise.all([
 ]);
 
 for (const page of pages) {
-  const source = await fs.readFile(page.source, "utf8");
+  let source = await fs.readFile(page.source, "utf8");
+  if (page.replacementSource) {
+    const replacement = await fs.readFile(page.replacementSource, "utf8");
+    const boundary = source.indexOf(page.replaceFrom);
+    if (boundary < 0) {
+      throw new Error(`Cannot find replacement boundary ${page.replaceFrom} in ${page.source}`);
+    }
+    source = `${source.slice(0, boundary).trimEnd()}\n\n${replacement.trimStart()}`;
+  }
   const body = renderMarkdown(source);
   const html = createHtml(page, body);
   await Promise.all([

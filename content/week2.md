@@ -1,611 +1,700 @@
-# 第二周：从偏好数据到可验证奖励
+# 第二周：reward 从哪里来——偏好学习、DPO、RLHF 与可验证强化学习
 
-> 适用对象：已完成第一周，理解策略梯度、advantage、PPO ratio 与 KL。
->
-> 这是一篇可独立阅读的教材。正文会从 pairwise preference 推导 reward model 与 DPO，再把 verifier、RLVR 和 GRPO 串成一条完整链；课件只在附录作为可选出处。
+> 第一周假设 reward 已经存在。本周不从算法名出发，而从反馈接口出发：人能给示范、能做两两选择，或者系统能自动判对错。接口不同，训练方法才不同。
 
 ## 本周最终产出
 
-读完后，你应能根据业务数据回答三件事：
+完成后，你应能从一批真实数据判断应该使用 SFT、DPO、reward-model RLHF、GR-REINFORCE 还是 GRPO，并能解释选择背后的信息结构，而不是只会复述缩写。
 
-1. 我的反馈是示范答案、偏好对，还是可自动验证的 reward？
-2. 应该使用 SFT、DPO、RLHF + PPO，还是 RLVR + GRPO？
-3. reward 上升时，怎样判断模型是真的变强，而不是学会投机？
-
-整周主线：
+贯穿全文的任务是数学推理：
 
 ```text
-反馈数据
-→ 把“什么算好”变成训练信号
-→ 选择离线或在线优化方式
-→ 用 KL / clip 控制策略漂移
-→ 用独立评估发现 reward hacking
+prompt: 求解 23 × 17，并把最终答案写在 \boxed{} 中。
 ```
 
----
+模型可能输出：
 
-## 0. 阅读地图与贯穿例子
+- \(y_1\)：推理正确，`\boxed{391}`；
+- \(y_2\)：格式正确，答案错误；
+- \(y_3\)：答案正确，但没有按格式输出；
+- \(y_4\)：语言流畅，却没有完成计算。
 
-本周继续使用数学问答：
+我们会分别问：如果手中是标准答案、偏好对或自动判题器，能学到什么？
 
-```text
-prompt x：计算 17 × 23，并给出简短推理。
+## 0. 一张因果地图
+
+| 手中反馈 | 能直接知道什么 | 首选起点 | 仍缺什么 |
+|---|---|---|---|
+| 专家示范 \(y^\star\) | “应该输出什么” | SFT | 不知道模型自己的错误分布 |
+| 偏好对 \(y_w\succ y_l\) | “两者谁更好” | DPO 或 reward model | 没有绝对分数 |
+| 自动 verifier | “结果是否满足规则” | 在线 RL / RLVR | 信号常稀疏，需要探索 |
+
+本周依赖链：
+
+\[
+\text{反馈接口}
+\rightarrow
+\text{可训练目标}
+\rightarrow
+\text{是否需要在线采样}
+\rightarrow
+\text{baseline 与更新约束}.
+\]
+
+# 第一章：先分清三种反馈，不要先背算法
+
+## 1.1 示范：把目标回答当监督标签
+
+若数据是：
+
+\[
+\mathcal D_{\text{demo}}=\{(x_i,y_i^\star)\},
+\]
+
+最自然的目标是最大似然：
+
+\[
+\mathcal L_{\text{SFT}}
+=
+-\mathbb E_{(x,y^\star)\sim\mathcal D}
+\sum_t\log\pi_\theta(y_t^\star\mid x,y^\star_{<t}).
+\]
+
+这就是 supervised fine-tuning，SFT。它告诉模型沿着专家轨迹每一步应该预测什么 token。
+
+SFT 很强，因为监督密集、训练稳定。但它优化的是“复现数据中的答案”，不是“从当前模型会犯的错误中继续探索”。若专家数据覆盖不足，模型不会自动看到自己最新策略下的新失败模式。
+
+## 1.2 偏好：只问两个回答谁更好
+
+开放式任务往往没有唯一标准答案。让标注者分别给 1–10 分，容易受个人尺度影响；比较两个回答谁更好通常更稳定。
+
+数据变为：
+
+\[
+\mathcal D_{\text{pref}}
+=
+\{(x_i,y_{i,w},y_{i,l})\},
+\]
+
+其中 \(w\) 是 preferred/chosen，\(l\) 是 rejected。
+
+偏好只提供顺序：
+
+\[
+y_w\succ y_l,
+\]
+
+没有告诉我们 \(y_w\) 是 8.3 分，也没有说两个回答差多少。第二章会从这一事实推出偏好模型和 DPO。
+
+## 1.3 自动验证：程序可以判定结果
+
+数学、代码、结构化抽取等任务，常有程序化检查：
+
+```python
+def verifier(prompt, completion):
+    parsed = parse_boxed_answer(completion)
+    return float(parsed == ground_truth[prompt])
 ```
 
-模型给出两个回答：
+这类反馈不需要人工逐条比较，可以对模型新生成的回答持续打分。由可验证奖励驱动的在线强化学习常称为 RLVR。
 
-```text
-y_w：17 × 23 = 391。因为 17 × 20 = 340，17 × 3 = 51，相加为 391。
-y_l：17 × 23 = 381。
-```
+它的优势是便宜、可扩展；局限也直接来自接口：
 
-同一组数据可以产生不同训练信号：
+- 只有最终 0/1，信号稀疏；
+- parser 或测试用例可能有漏洞；
+- 判对结果不等于判对推理过程；
+- 如果当前策略从未采样成功，reward 无法告诉它成功方向。
 
-| 反馈形式 | 数据长什么样 | 可采用的方法 |
+## 1.4 两个判断轴
+
+看见一个后训练任务，先问：
+
+1. **反馈来自哪里？** 示范、偏好还是 verifier？
+2. **训练数据由谁产生？** 固定离线数据，还是当前策略在线采样？
+
+| 方法 | 反馈 | 数据分布 |
 |---|---|---|
-| 专家示范 | \((x,y_w)\) | SFT |
-| 人类偏好 | \((x,y_w,y_l)\)，只知道前者更好 | reward model、DPO |
-| 自动验证 | `parse(y)==391` | RLVR、GRPO、REINFORCE、PPO |
-| 标量评分 | \(r(x,y)\in\mathbb R\) | RLHF + PPO，或作为离线筛选信号 |
+| SFT | 示范 | 离线 |
+| DPO | 偏好对 | 通常离线 |
+| reward-model + PPO | 学到的标量 reward | 在线 rollout |
+| GR-REINFORCE / GRPO | verifier 或标量 reward | 在线分组 rollout |
 
-本周的关键不是背算法名，而是理解：**反馈接口决定你能构造什么目标函数。**
+这是整周最重要的分类法。
 
----
+# 第二章：偏好如何变成一个可学习的标量
 
-# 第一章：后训练方法其实在回答两个问题
+## 2.1 从“谁更好”到选择概率
 
-**问题一：谁来定义“好回答”？问题二：优化时能不能让当前模型重新采样？**
-
-## 1.1 两条正交轴
-
-第一条轴是 reward 来源：
-
-- **示范**：直接给出目标 token；
-- **偏好**：只说两个回答谁更好；
-- **reward model**：用模型预测人类偏好；
-- **verifier**：用规则、执行器或环境直接检查结果。
-
-第二条轴是数据方式：
-
-- **离线**：训练期间只使用固定数据；
-- **在线**：当前策略持续生成新回答，再获得反馈。
-
-把常见方法放到同一张表：
-
-| 方法 | reward/监督来源 | 在线采样 | 核心目标 | 主要代价 |
-|---|---|---:|---|---|
-| SFT | 专家答案 | 否 | 最大化示范 token likelihood | 只能模仿数据覆盖到的行为 |
-| DPO | chosen/rejected 偏好对 | 否 | 提高 chosen 相对 reference 的优势 | 受固定偏好数据覆盖限制 |
-| RLHF + PPO | 学到的 reward model | 是 | 最大化预测 reward，同时约束 KL | rollout、RM 推理和 PPO 都较复杂 |
-| RLVR + GRPO | 自动 verifier | 是 | 从当前策略探索中提高可验证成功率 | verifier 设计与采样成本 |
-
-## 1.2 为什么 SFT 不是 RL 的廉价替代品？
-
-SFT 的损失：
-
-\[
-\mathcal L_{\mathrm{SFT}}
-=-\sum_t\log\pi_\theta(y_t^*\mid x,y_{<t}^*).
-\]
-
-它要求一个明确的参考回答 \(y^*\)。即使另一条回答也正确，只要 token 不同，SFT 仍把它当作非目标序列。
-
-RL 的目标：
-
-\[
-J(\theta)=
-\mathbb E_{y\sim\pi_\theta(\cdot\mid x)}[r(x,y)].
-\]
-
-它允许很多不同回答获得相同 reward。模型可以在当前能力附近探索新的正确路径，而不是只复现示范。
-
-因此：
-
-```text
-有唯一或高质量示范、需要冷启动 → 先 SFT
-只有相对偏好、没有可靠标量 reward → DPO 或 reward modeling
-能自动检查结果、希望在线探索 → RLVR
-```
-
-### 第一章小结
-
-算法选择首先是数据接口选择。下一章先处理最常见的人类反馈：人们往往难以给出校准良好的绝对分数，但更容易比较两个答案谁更好。
-
----
-
-# 第二章：从偏好对训练 reward model
-
-## 2.1 为什么使用成对比较？
-
-让标注者分别给两个回答打 `7.3` 和 `6.8` 分，存在尺度和校准问题；问“哪个更好”通常更稳定。
-
-偏好数据记为：
-
-\[
-\mathcal D=
-\{(x,y_w,y_l)\},
-\]
-
-其中 \(y_w\) 是 chosen/winner，\(y_l\) 是 rejected/loser。
-
-reward model \(r_\phi(x,y)\) 输出一个标量。我们不要求它的绝对值有意义，只要求 chosen 的分数高于 rejected。
-
-## 2.2 Bradley-Terry 偏好模型
-
-假设人类选择 \(y_w\) 的概率由 reward 差决定：
+设一个未知函数 \(r_\phi(x,y)\) 表示回答的潜在质量。我们只观察到两两选择，因此建模：
 
 \[
 P_\phi(y_w\succ y_l\mid x)
 =
-\frac{\exp(r_\phi(x,y_w))}
-{\exp(r_\phi(x,y_w))+\exp(r_\phi(x,y_l))}.
-\]
-
-分子分母同时除以 \(\exp(r_\phi(x,y_w))\)：
-
-\[
-\begin{aligned}
-P_\phi(y_w\succ y_l\mid x)
-&=\frac{1}
-{1+\exp(r_\phi(x,y_l)-r_\phi(x,y_w))}\\
-&=\sigma\left(
+\sigma\left(
 r_\phi(x,y_w)-r_\phi(x,y_l)
-\right).
-\end{aligned}
+\right),
 \]
 
-所以 reward model 的负对数似然为：
+其中：
 
 \[
-\boxed{
-\mathcal L_{\mathrm{RM}}(\phi)
-=-\mathbb E_{(x,y_w,y_l)\sim\mathcal D}
+\sigma(z)=\frac{1}{1+e^{-z}}.
+\]
+
+这个 Bradley–Terry 形式只依赖分数差：
+
+- 差为 0，预测偏好概率为 0.5；
+- \(y_w\) 高很多，概率趋近 1；
+- 顺序反过来，概率趋近 0。
+
+对已标注的胜者最大化似然，得到 reward model 的 loss：
+
+\[
+\mathcal L_{\text{RM}}(\phi)
+=
+-\mathbb E_{(x,y_w,y_l)\sim\mathcal D_{\text{pref}}}
 \log\sigma\left(
 r_\phi(x,y_w)-r_\phi(x,y_l)
-\right)
-}
+\right).
 \]
 
-这就是一个二分类损失：reward 差越大，模型越确信 chosen 更好。
+## 2.2 手算一次偏好概率
 
-## 2.3 reward 分数为什么不能当作真实效用？
-
-损失只使用差值：
+若：
 
 \[
-r_\phi(x,y_w)-r_\phi(x,y_l).
+r_\phi(x,y_w)=2.0,\qquad r_\phi(x,y_l)=0.5,
 \]
 
-给所有回答同时加常数 \(c(x)\)，偏好概率完全不变：
+则分数差为 1.5：
 
 \[
-(r_w+c)-(r_l+c)=r_w-r_l.
+P(y_w\succ y_l)=\sigma(1.5)\approx0.818.
 \]
 
-因此 reward 的零点不可识别；其尺度也受温度、数据和正则化影响。工程上不要比较两个不同 reward model 的原始均值，也不要把 `reward=3.7` 解释为客观质量。
+训练若希望该概率更接近 1，就会继续拉大胜者与败者的分差。
 
-真正应监控：
+## 2.3 reward model 的数字没有天然绝对单位
 
-- held-out preference accuracy；
-- 不同 prompt 域上的校准；
-- chosen/rejected margin 分布；
-- 长度与 reward 的相关性；
-- 对抗样例和分布外回答。
-
-## 2.4 用 reward model 做 RLHF
-
-训练好 \(r_\phi\) 后，复制 SFT 模型得到可训练策略 \(\pi_\theta\)，并保留冻结 reference \(\pi_{\mathrm{ref}}\)：
+因为 loss 只看差值，对同一个 prompt 同时加上常数 \(c(x)\)：
 
 \[
-\max_\theta
-\mathbb E_{x\sim\mathcal D,\,
-y\sim\pi_\theta(\cdot\mid x)}
+r'_\phi(x,y)=r_\phi(x,y)+c(x),
+\]
+
+偏好概率完全不变。
+
+因此：
+
+- reward model 的 3.2 不是“真实效用 3.2”；
+- 不同版本 reward model 的均值不能直接横比；
+- 模型只在偏好数据覆盖区域内相对可信；
+- 策略可能找到 reward model 的漏洞，把预测分推高却没有真正变好。
+
+## 2.4 经典 RLHF 管线为什么需要四个角色
+
+得到 reward model 后，可以让当前策略在线生成：
+
+\[
+y\sim\pi_\theta(\cdot\mid x),
+\]
+
+并最大化：
+
+\[
+\mathbb E[r_\phi(x,y)].
+\]
+
+但只追逐一个不完美预测器容易偏离自然语言能力，因此加入 reference 约束：
+
+\[
+\max_\theta\;
+\mathbb E_{y\sim\pi_\theta}
 \left[
 r_\phi(x,y)
--\beta
-\log\frac{\pi_\theta(y\mid x)}
-{\pi_{\mathrm{ref}}(y\mid x)}
+-\beta\log
+\frac{\pi_\theta(y\mid x)}
+{\pi_{\text{ref}}(y\mid x)}
 \right].
 \]
 
-对 \(y\sim\pi_\theta\) 取期望后，第二项就是：
+一套 PPO 式 RLHF 常包含：
+
+| 组件 | 是否更新 | 作用 |
+|---|---:|---|
+| policy | 是 | 生成并改进回答 |
+| reward model | 通常否 | 近似人类偏好 |
+| value/critic | 是 | 预测 policy 的未来回报，构造 advantage |
+| reference policy | 否 | 约束长期漂移 |
+
+顺序是：
 
 \[
--\beta D_{\mathrm{KL}}
-(\pi_\theta(\cdot\mid x)\|
-\pi_{\mathrm{ref}}(\cdot\mid x)).
+\text{SFT}
+\rightarrow
+\text{收集偏好对}
+\rightarrow
+\text{训练 reward model}
+\rightarrow
+\text{在线 rollout + PPO}.
 \]
 
-它表达一个明确交易：
+这一管线表达力强，但在线采样、value 拟合和 PPO 调参都增加了复杂度。下一章问：如果手里已经有固定偏好对，能否直接训练 policy？
 
-```text
-提高 reward model 分数
-但每偏离 reference 一点，都要支付 β 控制的代价
-```
+# 第三章：DPO 是怎样从 KL 正则化目标推出的
 
-若 \(\beta\) 太小，策略容易钻 reward model 漏洞；若太大，策略几乎无法离开 SFT 模型。
+## 3.1 先解一个“如果 reward 已知”的最优策略
 
-### 第二章小结
+固定 prompt \(x\)，考虑所有回答 \(y\)。我们想同时：
 
-reward model 把离散偏好变成可在线优化的标量，但引入了一个可被策略利用的近似模型。下一章会看到：DPO 可以把“训练 RM + RL 优化”合并成一个直接的偏好分类目标。
-
----
-
-# 第三章：DPO 为什么能绕过显式 reward model？
-
-## 3.1 从 KL 正则化最优策略开始
-
-对固定 prompt \(x\)，考虑：
+1. 提高期望 reward；
+2. 不要离 reference policy 太远。
 
 \[
 \max_\pi
 \sum_y\pi(y\mid x)r(x,y)
--\beta
-D_{\mathrm{KL}}(\pi(\cdot\mid x)\|
-\pi_{\mathrm{ref}}(\cdot\mid x)).
+-\beta\sum_y\pi(y\mid x)
+\log\frac{\pi(y\mid x)}{\pi_{\text{ref}}(y\mid x)}.
 \]
 
-加入概率和为 \(1\) 的约束并求最优解，可得到：
+还必须满足：
 
 \[
-\pi^*(y\mid x)
-=\frac{1}{Z(x)}
-\pi_{\mathrm{ref}}(y\mid x)
+\sum_y\pi(y\mid x)=1.
+\]
+
+对这个带归一化约束的问题求最优解，可得：
+
+\[
+\pi^\star(y\mid x)
+=
+\frac{1}{Z(x)}
+\pi_{\text{ref}}(y\mid x)
 \exp\left(\frac{r(x,y)}{\beta}\right),
 \]
 
-其中 \(Z(x)\) 是只依赖 prompt 的归一化常数。
+其中 \(Z(x)\) 只负责让概率和为 1。
 
-两边取对数并整理：
+这句话比公式更重要：
+
+> 最优策略等于 reference policy，再按 reward 的指数权重重新分配概率。
+
+## 3.2 反解 reward
+
+对上式取对数并整理：
 
 \[
 r(x,y)
-=\beta\log
-\frac{\pi^*(y\mid x)}
-{\pi_{\mathrm{ref}}(y\mid x)}
+=
+\beta\log
+\frac{\pi^\star(y\mid x)}
+{\pi_{\text{ref}}(y\mid x)}
 +\beta\log Z(x).
 \]
 
-对 chosen 与 rejected 做差，\(\log Z(x)\) 抵消：
+偏好 loss 只需要两个回答的 reward 差，因此同一个 prompt 的 \(\beta\log Z(x)\) 会消掉：
 
 \[
 \begin{aligned}
 r(x,y_w)-r(x,y_l)
 =\beta\Bigg[
-&\log\frac{\pi^*(y_w\mid x)}
-{\pi_{\mathrm{ref}}(y_w\mid x)}\\
--&\log\frac{\pi^*(y_l\mid x)}
-{\pi_{\mathrm{ref}}(y_l\mid x)}
+&\log\frac{\pi^\star(y_w\mid x)}
+{\pi_{\text{ref}}(y_w\mid x)}\\
+-&\log\frac{\pi^\star(y_l\mid x)}
+{\pi_{\text{ref}}(y_l\mid x)}
 \Bigg].
 \end{aligned}
 \]
 
-## 3.2 代回 Bradley-Terry 得到 DPO
-
-用当前策略 \(\pi_\theta\) 近似最优策略，把上面的 reward 差代入偏好概率：
+现在用要训练的 \(\pi_\theta\) 代替未知最优策略，再代回 Bradley–Terry loss：
 
 \[
-\boxed{
-\mathcal L_{\mathrm{DPO}}(\theta)
-=-\mathbb E_{\mathcal D}
+\mathcal L_{\text{DPO}}(\theta)
+=
+-\mathbb E_{\mathcal D_{\text{pref}}}
 \log\sigma\left(
-\beta[
-\log\pi_\theta(y_w\mid x)-\log\pi_{\mathrm{ref}}(y_w\mid x)
--\log\pi_\theta(y_l\mid x)+\log\pi_{\mathrm{ref}}(y_l\mid x)
-]
-\right)
-}
+\beta
+\left[
+\log\frac{\pi_\theta(y_w\mid x)}
+{\pi_{\text{ref}}(y_w\mid x)}
+-
+\log\frac{\pi_\theta(y_l\mid x)}
+{\pi_{\text{ref}}(y_l\mid x)}
+\right]
+\right).
 \]
 
-定义相对 reference 的隐式 reward：
+这不是“凭空发明的对比 loss”。它来自：
 
 \[
-\hat r_\theta(x,y)
-=\beta\log
-\frac{\pi_\theta(y\mid x)}
-{\pi_{\mathrm{ref}}(y\mid x)}.
+\text{KL 正则化最优策略}
+\rightarrow
+\text{隐式 reward}
+\rightarrow
+\text{偏好似然}.
 \]
 
-DPO 就是在提高：
+## 3.3 DPO 真正在比较什么
+
+定义相对 reference 的序列 log-prob 增益：
 
 \[
-\hat r_\theta(x,y_w)-\hat r_\theta(x,y_l).
+m_\theta(x,y)
+=
+\log\pi_\theta(y\mid x)
+-\log\pi_{\text{ref}}(y\mid x).
 \]
 
-它不是简单地“提高 chosen、降低 rejected”；reference log-ratio 决定了变化的基准。
+DPO 希望：
 
-## 3.3 \(\beta\) 的作用
+\[
+m_\theta(x,y_w)>m_\theta(x,y_l).
+\]
 
-- 较大的 \(\beta\)：DPO logit 对 log-ratio 差更敏感，通常更强调接近 reference 的正则化解释；
-- 较小的 \(\beta\)：允许更激进的相对偏移，但也可能造成训练不稳定或过拟合偏好对。
+也就是说，不只是让 chosen 的绝对概率高，而是让 chosen **相对 reference 的提升幅度**大于 rejected。
 
-不同实现对 \(\beta\) 的直觉表述可能略有差异，最终应查看：
+## 3.4 \(\beta\) 不只是普通 loss 权重
 
-- chosen/rejected reward margin；
-- policy 与 reference 的 KL；
-- held-out win rate；
-- 长度和格式偏移。
+\(\beta\) 来自原始 KL 正则化强度：
 
-## 3.4 DPO 与 RLHF 的真正差别
+- 较大 \(\beta\)：更强调贴近 reference，对偏好差的响应更保守；
+- 较小 \(\beta\)：允许更激进地重排 chosen/rejected 概率。
 
-| 维度 | DPO | RLHF + PPO |
+实际还会与序列 log-prob 聚合、长度分布、学习率相互作用，因此不能脱离实现只凭一句直觉调参。
+
+## 3.5 DPO 与在线 RL 的分界
+
+| 问题 | DPO | reward-model PPO / RLVR |
 |---|---|---|
-| 数据 | 固定偏好对 | 当前策略在线 rollout |
-| reward | 隐式存在于 log-ratio | 显式 reward model |
-| 优化 | 类似二分类/SFT 的离线训练 | on-policy policy optimization |
-| 探索 | 无法主动生成新分布数据 | 能探索当前策略附近的新回答 |
-| 复杂度 | 较低 | 较高 |
-| 风险 | 数据覆盖、偏好噪声 | RM exploitation、训练不稳、成本高 |
+| 数据 | 固定偏好对 | 当前 policy 新 rollout |
+| 显式 reward model | 不需要 | 前者需要，RLVR 可用 verifier |
+| learned critic | 不需要 | PPO 通常需要 |
+| 探索新解 | 受离线覆盖限制 | 可以 |
+| 实现复杂度 | 较低 | 较高 |
+| 分布漂移适应 | 弱 | 持续获得新样本 |
 
-若业务有高质量固定偏好对、在线采样昂贵，DPO 是自然起点；若模型必须通过尝试发现新推理路径，在线 RL 更合适。
+DPO 是偏好优化，不是“没有 critic 的 GRPO”。二者的数据来源和目标都不同。
 
----
+# 第四章：自动 verifier 把问题变成在线探索
 
-# 第四章：从 reward model 转向 verifier
+## 4.1 verifier 与 reward model 的根本区别
 
-## 4.1 verifier 与 reward model 的差别
+| | reward model | verifier |
+|---|---|---|
+| 来源 | 从人类偏好拟合 | 程序规则、测试、执行结果 |
+| 输出 | 预测偏好分数 | 可检查的成功/失败或分项得分 |
+| 主要风险 | 分布外预测、过优化 | parser/测试漏洞、规格不完整 |
+| 适合 | 开放式质量 | 数学、代码、结构化任务 |
 
-reward model 在模仿人类判断；verifier 直接检查任务约束。
+verifier 不一定是神谕。它只验证写进规则里的东西。
 
-| 类型 | 示例 | 优点 | 风险 |
-|---|---|---|---|
-| 规则 verifier | JSON schema、正则、格式检查 | 快、可解释 | 容易只学格式 |
-| 执行 verifier | 代码单测、SQL 执行、工具返回值 | 与真实任务接近 | 沙箱、安全、环境不稳定 |
-| 答案 verifier | 数学答案 exact match | 便宜、客观 | 解析错误、忽略推理质量 |
-| 模型 judge | 另一个 LLM 评分 | 覆盖开放任务 | 偏差、串通、提示注入 |
+## 4.2 结果验证与过程验证
 
-可自动验证结果的在线 RL 常称为 **RLVR**：reinforcement learning with verifiable rewards。
-
-## 4.2 outcome reward 与 process reward
-
-结果奖励：
+若只检查最终答案：
 
 \[
-r(x,y)=\mathbf 1[\operatorname{answer}(y)=y^*].
+R(x,y)=\mathbf 1[\text{final}(y)=y^\star],
 \]
 
-优点是定义清楚；缺点是稀疏，无法区分“差一点正确”和“完全胡说”。
+这是 outcome reward。它可靠但稀疏，不说明中间哪一步正确。
 
-过程奖励为中间步骤 \(z_t\) 打分：
+若对中间步骤逐项判断：
 
 \[
-R(y)=\sum_t r_{\mathrm{process}}(z_t)
-+r_{\mathrm{outcome}}(y).
+r_t=\text{step\_verifier}(x,y_{\le t}),
 \]
 
-它能改善 credit assignment，但前提是过程检查器可靠。若过程 reward 只是另一个容易欺骗的模型，稠密信号也可能放大错误。
+这是 process reward。信号更密，但高质量逐步标签或过程验证器更难获得，也可能把某种解题风格写死。
 
-## 4.3 一个合格 verifier 的设计顺序
+工程上常先用可信 outcome verifier 建立基线，再决定是否值得引入过程监督。
 
-以数学回答为例：
+## 4.3 verifier 的设计顺序
 
-1. **规范输出协议**：例如最终答案放在 `\boxed{}`；
-2. **解析与验证分离**：parser 只提取答案，verifier 只比较语义；
-3. **拒绝解析失败**：不要默认缺失字段等于零或空字符串；
-4. **规范化**：处理空格、整数符号、等价分数，但不要过度宽松；
-5. **对抗测试**：多答案、重复 box、提示注入、超长文本、Unicode 混淆；
-6. **独立评估**：训练 verifier 与最终评估器尽量不同实现。
+以 `\boxed{391}` 为例：
 
-伪代码：
+1. **解析**：从文本提取 boxed 内容；
+2. **规范化**：处理空格、等价表达、数值格式；
+3. **判定**：与标准答案比较；
+4. **分项记录**：`parse_ok`、`format_ok`、`answer_ok` 分开；
+5. **对抗测试**：空输出、多答案、提示注入、超长文本、非法代码。
 
-```python
-def verify(prompt, completion, expected):
-    parsed = parse_boxed_answer(completion)
-    if parsed is None:
-        return {"correct": 0.0, "format": 0.0}
+不要把 parser 失败和答案错误压成一个不可诊断的布尔值。
 
-    correct = float(canonicalize(parsed) == canonicalize(expected))
-    format_ok = float(has_exactly_one_boxed_answer(completion))
-    return {
-        "correct": correct,
-        "format": format_ok,
-        "total": correct + 0.1 * format_ok,
-    }
-```
+## 4.4 稀疏 reward 的第一个难题：同题中谁高于正常水平
 
-必须分别记录 `correct` 与 `format`。如果只看 `total`，模型可能靠格式奖励上涨掩盖准确率不变。
-
----
-
-# 第五章：GRPO 如何把同题样本变成 baseline？
-
-## 5.1 同一个 prompt 采样一组回答
-
-对每个 prompt \(x_i\)，采样 \(G\) 个回答：
+假设同一 prompt 采样 \(G\) 个回答：
 
 \[
-y_{i,1},\ldots,y_{i,G}
-\sim\pi_{\theta_{\mathrm{old}}}(\cdot\mid x_i),
+y_1,\ldots,y_G\sim\pi_{\text{old}}(\cdot\mid x),
 \]
 
-得到 rewards：
+verifier 给出：
 
 \[
-r_{i,1},\ldots,r_{i,G}.
+R_1,\ldots,R_G.
 \]
 
-组均值和标准差：
+我们希望不训练额外 critic，也能构造“相对表现”。最自然的参照就是同题样本的平均分。这就引出下一章的 group-relative 方法。
+
+# 第五章：从同题比较推出 GR-REINFORCE 与 GRPO
+
+## 5.1 组内标准化不是魔法 value
+
+对同一 prompt 的一组 reward：
 
 \[
-\mu_i=\frac1G\sum_{j=1}^G r_{i,j},
+\mu_x=\frac1G\sum_{j=1}^G R_j,
+\]
+
+\[
+\sigma_x=
+\sqrt{
+\frac1G\sum_{j=1}^G(R_j-\mu_x)^2
+},
+\]
+
+\[
+A_j=
+\frac{R_j-\mu_x}{\sigma_x+\varepsilon}.
+\]
+
+\(A_j\) 读作：
+
+> 第 \(j\) 个回答比当前策略在这道题上的同组样本平均水平好多少个标准差。
+
+它是 sample-group baseline，不是 \(V(s_t)\) 的 learned prediction。
+
+### 数值例子：一组四个回答只有一个正确
+
+\[
+R=[1,0,0,0].
+\]
+
+使用总体标准差：
+
+\[
+\mu=0.25,\qquad
+\sigma=\sqrt{0.1875}\approx0.433.
+\]
+
+于是：
+
+\[
+A_{\text{correct}}\approx1.73,
 \qquad
-\sigma_i=
-\sqrt{\frac1G\sum_{j=1}^G(r_{i,j}-\mu_i)^2}.
+A_{\text{wrong}}\approx-0.58.
 \]
 
-最常见的组相对 advantage：
+正确回答被强化，三个错误回答被压低；同一 prompt 内 advantage 和为近似 0。
+
+### 零方差组
+
+若：
 
 \[
-\hat A_{i,j}
-=\frac{r_{i,j}-\mu_i}
-{\sigma_i+\varepsilon_{\mathrm{num}}}.
+R=[0,0,0,0]
+\quad\text{或}\quad
+R=[1,1,1,1],
 \]
 
-它在问：
-
-> 同一道题的这些回答中，这条回答比组内平均水平好多少？
-
-这与第一周的 \(A=Q-V\) 同构，只是 baseline 不再来自单独训练的 value model，而来自同 prompt 样本组。
-
-## 5.2 一个数值例子
-
-同一道题采样四条回答，reward 为：
+则所有 \(R_j-\mu=0\)，组内没有排序信息：
 
 \[
-[1,\;1,\;0,\;0].
+A_j=0.
 \]
 
-均值 \(\mu=0.5\)，标准差 \(\sigma=0.5\)，所以 advantage：
+\(\varepsilon\) 只能防止除零，不能制造学习信号。前者说明题太难或探索不足，后者说明题太简单。
+
+## 5.2 先做最简单的在线更新：GR-REINFORCE
+
+对 completion \(y_i=(y_{i,1},\ldots,y_{i,T_i})\)，定义平均 completion log-prob：
 
 \[
-[+1,\;+1,\;-1,\;-1].
+\bar\ell_i(\theta)
+=
+\frac1{T_i}
+\sum_{t=1}^{T_i}
+\log\pi_\theta(y_{i,t}\mid x_i,y_{i,<t}).
 \]
 
-正确回答获得正更新，错误回答获得负更新。
-
-若四条全部错误：
+最小化：
 
 \[
-[0,0,0,0],
+\mathcal L_{\text{GR-REINFORCE}}
+=
+-\frac1N\sum_{i=1}^{N}A_i\bar\ell_i(\theta).
 \]
 
-组内方差为零，所有相对 advantage 接近零。这一组不会提供方向，因为当前采样没有证据说明哪条更好。解决方式不是强行除以极小数，而是提高探索、group size、模型初始化或 reward 分辨率。
+训练顺序：
 
-## 5.3 GRPO 的策略目标
+1. 当前策略采样一组回答；
+2. verifier 打分；
+3. 按 prompt 算组内 advantage；
+4. 对这批数据做一次 on-policy 更新；
+5. 丢弃 rollout，重新采样。
 
-GRPO 通常仍复用 PPO 的 token ratio：
+这里同一序列的 \(A_i\) 会广播给 completion 中所有 token。它解决了“相对哪条回答更好”，但没有自动解决“回答内部哪一步推理更好”。
+
+## 5.3 reference KL 的逐 token 采样估计
+
+定义采样 token 上：
 
 \[
-\rho_{i,j,t}(\theta)=
-\frac{
-\pi_\theta(y_{i,j,t}\mid x_i,y_{i,j,<t})
-}{
-\pi_{\theta_{\mathrm{old}}}
-(y_{i,j,t}\mid x_i,y_{i,j,<t})
-}.
+\Delta_t
+=
+\log\pi_{\text{ref}}(a_t\mid s_t)
+-\log\pi_\theta(a_t\mid s_t).
 \]
 
-clipped objective：
+CS285 Homework 4 使用：
 
 \[
-\mathcal L_{\mathrm{GRPO}}
-=-\mathbb E_{i,j,t}
+\widehat k_t
+=
+e^{\Delta_t}-\Delta_t-1.
+\]
+
+令 \(x=e^{\Delta_t}>0\)，因为：
+
+\[
+x-\log x-1\ge0,
+\]
+
+所以每个样本上的 \(\widehat k_t\) 都非负。并且在
+\(a_t\sim\pi_\theta\) 下，它的期望等于：
+
+\[
+D_{\mathrm{KL}}
+\left(
+\pi_\theta(\cdot\mid s_t)
+\;\|\;
+\pi_{\text{ref}}(\cdot\mid s_t)
+\right).
+\]
+
+相比直接用 \(-\Delta_t\)，这个估计量不会让单个样本出现“负 KL 惩罚”。
+
+加入正则后：
+
+\[
+\mathcal L
+=
+\mathcal L_{\text{GR-REINFORCE}}
++\beta\,
+\operatorname{masked\_mean}(\widehat k_t).
+\]
+
+## 5.4 rollout 很贵：再从一步更新走到 GRPO
+
+GR-REINFORCE 更新一次就重采样，稳定但样本利用率低。若要复用同一批 rollout，保存采样时：
+
+\[
+\log\pi_{\text{old}}(a_t\mid s_t).
+\]
+
+优化时重算 current log-prob：
+
+\[
+r_{i,t}(\theta)
+=
+\exp\left(
+\log\pi_\theta(a_{i,t}\mid s_{i,t})
+-\log\pi_{\text{old}}(a_{i,t}\mid s_{i,t})
+\right).
+\]
+
+用第一周已经推导的 clipped surrogate：
+
+\[
+\mathcal L_{\text{GRPO,pg}}
+=
+-
+\mathbb E_{i,t}
+\left[
 \min\left(
-\rho_{i,j,t}\hat A_{i,j},
-\operatorname{clip}
-(\rho_{i,j,t},1-\epsilon,1+\epsilon)\hat A_{i,j}
+r_{i,t}A_i,\;
+\operatorname{clip}(r_{i,t},1-\epsilon,1+\epsilon)A_i
 \right)
-+\beta\mathcal L_{\mathrm{KL}}.
+\right].
 \]
 
-同一个 sequence-level advantage 会广播到该回答的有效 token。若有过程 reward，也可以构造 token-level advantage。
+再加 reference KL：
 
-## 5.4 GRPO、GR-REINFORCE 与 PPO
+\[
+\mathcal L_{\text{GRPO}}
+=
+\mathcal L_{\text{GRPO,pg}}
++\beta\mathcal L_{\text{KL}}.
+\]
 
-| 方法 | baseline | 是否复用 rollout | 是否 clip | 是否训练 critic |
-|---|---|---:|---:|---:|
-| PPO | value model / GAE | 少量 epoch | 是 | 是 |
-| GRPO | 同 prompt group | 少量 epoch | 是 | 否 |
-| GR-REINFORCE | 同 prompt group | 单次 on-policy | 否或不需要 | 否 |
+GRPO 在这套课程里的准确定位是：
 
-GRPO 更省去 critic 显存，但要为每个 prompt 生成多条回答；它省的是 value 模型，不一定省 rollout 算力。
+> 用同 prompt 的一组回答构造 baseline，省掉 learned critic；再用 PPO 式 ratio 与 clipping 有限复用 rollout。
 
----
+## 5.5 三个常见混淆
 
-# 第六章：怎样选择 SFT、DPO、PPO 或 GRPO？
+| 混淆 | 正确区分 |
+|---|---|
+| group advantage = token credit | 它通常是序列级标量，广播到 token |
+| GRPO = DPO | GRPO 在线采样并使用 reward；DPO 通常用固定偏好对 |
+| 无 critic = 无 baseline | 组内均值本身就是 sample baseline |
 
-按下面顺序决策：
+# 第六章：按数据和目标选择方法
 
-```text
-1. 有可靠专家答案吗？
-   有 → 先 SFT 冷启动
+## 6.1 决策表
 
-2. 有固定 chosen/rejected 偏好对，但无法自动评分吗？
-   有 → 先 DPO
+| 你的实际条件 | 推荐起点 | 原因 |
+|---|---|---|
+| 有高质量标准答案，想先建立能力 | SFT | 监督密集、稳定 |
+| 有固定 chosen/rejected，没有可靠在线打分 | DPO | 直接利用偏好对 |
+| 开放式质量且有大量人类偏好 | reward model + PPO | 可在线优化学到的偏好 |
+| 有可靠自动 verifier，当前模型偶尔能成功 | GR-REINFORCE | 最小在线基线，易调试 |
+| rollout 贵，希望有限复用 | GRPO | group baseline + PPO 式复用 |
+| 当前策略从不成功 | 先 SFT/curriculum | 全零 reward 无学习方向 |
 
-3. 能对当前模型新生成的回答自动评分吗？
-   有 → 在线 RL / RLVR
+## 6.2 推荐训练阶梯
 
-4. reward 稀疏但同题比较有意义，critic 又昂贵吗？
-   是 → GRPO 或 GR-REINFORCE
+\[
+\text{预训练模型}
+\rightarrow
+\text{SFT 建立基本格式与能力}
+\rightarrow
+\text{可信 verifier / 偏好数据}
+\rightarrow
+\text{最简单可诊断目标}
+\rightarrow
+\text{必要时加入 rollout 复用}.
+\]
 
-5. 需要 token-level value、长时序过程 reward 或更成熟的控制吗？
-   是 → PPO + critic / GAE
-```
+对可验证推理任务：
 
-实际系统常组合使用：
+1. 用 SFT 让模型至少偶尔答对；
+2. 单独验证 parser 和 reward；
+3. 跑 GR-REINFORCE 作为 on-policy 基线；
+4. 确认 reward、KL、长度和样例都合理；
+5. 再加入 GRPO 的 old log-prob、minibatch 和多个 epoch。
 
-```text
-预训练
-→ SFT 建立基本指令能力
-→ DPO 对齐固定偏好
-→ RLVR 在可验证任务上在线探索
-→ 继续用 reference KL 保持通用能力
-```
+## 6.3 本周完成标准
 
----
+- [ ] 能从反馈接口判断是示范、偏好还是 verifier；
+- [ ] 能从 Bradley–Terry 写出 reward-model loss；
+- [ ] 能解释 reward model 分数为何没有绝对零点；
+- [ ] 能写出 RLHF 中四个模型的职责；
+- [ ] 能从 KL 正则化最优策略推到 DPO loss；
+- [ ] 能解释 DPO 为什么依赖离线偏好覆盖；
+- [ ] 能手算一组 0/1 reward 的 group advantage；
+- [ ] 能解释零方差组为何没有学习信号；
+- [ ] 能区分 GR-REINFORCE 与 GRPO；
+- [ ] 能说明 group advantage 不等于过程监督。
 
-# 第七章：训练与评估的完整检查表
+# 附录：本周官方课件与对应视频
 
-## 7.1 数据层
+| 正文主题 | 官方课件 | 对应视频 |
+|---|---|---|
+| 偏好与 reward learning | [CS224R L8 · Reward Learning](https://cs224r.stanford.edu/spring_2025/slides/08_cs224r_reward_learning_2025.pdf) | [CS224R Spring 2025 · Lecture 8](https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=8) |
+| RLHF 与 DPO | [CS224R L9 · Preference Optimization](https://cs224r.stanford.edu/spring_2025/slides/09_cs224r-2025-rlhf.pdf) | [CS224R Spring 2025 · Lecture 9](https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=9) |
+| RLVR 与推理 | [CS224R L10 · RL for Reasoning](https://cs224r.stanford.edu/spring_2025/slides/10_cs224r-rl_for_reasoning_lecture.pdf) | [CS224R Spring 2025 · Lecture 10](https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=10) |
+| LLM policy gradient 总览 | [CS285 L14 · LLM RL](https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-14.pdf) | [CS285 课程页](https://rail.eecs.berkeley.edu/deeprlcourse/) |
+| GR-REINFORCE、GRPO、KL 估计 | [CS285 Homework 4](https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf) | [官方 starter code](https://github.com/berkeleydeeprlcourse/homework_spring2026) |
 
-- preference 数据是否随机交换过左右顺序，避免位置偏差？
-- chosen 是否真的比 rejected 好，而不只是更长？
-- prompt 是否泄漏答案或评估集？
-- verifier parser 是否有单测和对抗样例？
-
-## 7.2 优化层
-
-- DPO 是否同时加载冻结 reference？
-- GRPO 每个 prompt 是否真的形成完整 group？
-- advantage 是否只在组内归一化？
-- 全相同 reward 的组是否安全地产生零信号？
-- old log-prob 是否来自 rollout 时的策略？
-- KL、clip fraction、entropy 和梯度范数是否记录？
-
-## 7.3 评估层
-
-- task reward 与 held-out 指标是否同时上涨？
-- 长度、格式通过率和答案正确率是否拆开？
-- 是否人工查看高 reward 失败样例？
-- 是否比较相同采样预算和相同 prompt 集？
-- 是否至少运行多个 seed 或给出置信区间？
-
----
-
-# 第八章：完成检查
-
-请合上正文回答：
-
-1. Bradley-Terry 为什么只依赖 reward 差？
-2. reward model 的绝对分数为什么不可直接解释？
-3. 从 KL 正则化最优策略怎样得到 DPO 的 log-ratio？
-4. DPO 与 RLHF 的在线/离线差别是什么？
-5. verifier 与 reward model 的失败方式有什么不同？
-6. 为什么 GRPO 不需要 value model？
-7. 同组 reward 全相同时，GRPO 为什么没有学习信号？
-8. old policy 与 reference policy 分别做什么？
-
-<details>
-<summary><strong>展开查看答案要点</strong></summary>
-
-1. Bradley-Terry 概率可写成 \(\sigma(r_w-r_l)\)，共同平移会抵消。
-2. pairwise loss 不能识别共同加性常数，尺度也受训练设置影响。
-3. KL 正则化最优策略满足 \(\pi^*\propto\pi_{\mathrm{ref}}\exp(r/\beta)\)，取 log 并做 chosen/rejected 差即可消去归一化常数。
-4. DPO 使用固定偏好对；RLHF + PPO 用当前策略持续生成回答并由 RM 打分。
-5. RM 会被策略利用统计偏差；verifier 会被 parser、规则漏洞、执行环境或目标定义漏洞利用。
-6. 同 prompt 的 group mean/std 直接提供相对 baseline。
-7. 没有样本间相对差异，减均值后 advantage 全为零。
-8. old policy 为本批 rollout 与 ratio 提供分母；reference policy 是长期 KL 锚点。
-
-</details>
-
----
-
-# 附录：可选原始资料
-
-- [CS224R · Reward Learning](https://cs224r.stanford.edu/spring_2025/slides/08_cs224r_reward_learning_2025.pdf)
-- [CS224R · RLHF / Preference Optimization](https://cs224r.stanford.edu/spring_2025/slides/09_cs224r-2025-rlhf.pdf)
-- [CS224R · RL for Reasoning](https://cs224r.stanford.edu/spring_2025/slides/10_cs224r-rl_for_reasoning_lecture.pdf)
-- [CS285 · LLM RL](https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-14.pdf)
-
+下一周只做工程实现：张量在哪里对齐、mask 如何定义、old log-prob 何时缓存、reward 与 advantage 如何进入 loss。
