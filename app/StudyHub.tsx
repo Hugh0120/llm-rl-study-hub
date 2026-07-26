@@ -132,12 +132,12 @@ export function StudyHub() {
     <main>
       <section className="hero">
         <div className="hero-grid" aria-hidden="true" />
-        <nav className="nav"><span className="brand">LLM / RL</span><a href="#roadmap">学习路线</a><a href="#glossary">概念速查</a></nav>
+        <nav className="nav"><span className="brand">LLM / RL</span><a href="#guides">四周教材</a><a href="#roadmap">配套资料</a><a href="#glossary">概念速查</a></nav>
         <div className="hero-inner">
           <p className="kicker">FOR ALGORITHM ENGINEERS · 4 WEEKS</p>
           <h1>把大模型<br /><em>后训练</em>做成能力。</h1>
           <p className="hero-copy">一条删去传统 RL 冗余内容的四周路径：从策略梯度直达 PPO、RLHF、GRPO 与可验证推理训练。</p>
-          <div className="hero-actions"><a className="button primary" href="/week1.html">阅读第 1 周中文精读 <span>↗</span></a><a className="button ghost" href="#roadmap">查看四周路线 ↓</a></div>
+          <div className="hero-actions"><a className="button primary" href="/week1.html">从第 1 周开始 <span>↗</span></a><a className="button ghost" href="#guides">打开四周教材目录 ↓</a></div>
         </div>
         <aside className="progress-card" aria-label="学习进度">
           <div><p className="label">YOUR PROGRESS</p><strong>{progress}%</strong></div>
@@ -146,8 +146,28 @@ export function StudyHub() {
         </aside>
       </section>
 
+      <section id="guides" className="guide-index section">
+        <div className="section-heading"><div><p className="kicker">START HERE</p><h2>四份中文教材，<br />按顺序直接学。</h2></div><p>每一周都是可独立阅读的完整章节，公式、符号、推导和工程上下文已串联好；Slides 与视频放在后面作为补充。</p></div>
+        <div className="guide-grid">
+          {weeks.map((item, index) => (
+            <a className="guide-card" href={item.guideHref} key={item.number}>
+              <div className="guide-card-top"><span>WEEK {item.number}</span><span>{item.hours}</span></div>
+              <h3>{item.title}</h3>
+              <p>{item.outcome}</p>
+              <div className="guide-topics">
+                {index === 0 && "MDP · REINFORCE · GAE · PPO"}
+                {index === 1 && "RLHF · DPO · Verifier · RLVR · GRPO"}
+                {index === 2 && "Tensor · Mask · Rollout · KL · Smoke test"}
+                {index === 3 && "Ablation · Reward hacking · Agent RL"}
+              </div>
+              <strong>进入本周教材 <span>↗</span></strong>
+            </a>
+          ))}
+        </div>
+      </section>
+
       <section id="roadmap" className="roadmap section">
-        <div className="section-heading"><div><p className="kicker">THE ROUTE</p><h2>四周，只保留<br />真正需要的内容。</h2></div><p>点击周卡切换内容。每份资料都跳转至课程官网，而非本地副本。</p></div>
+        <div className="section-heading"><div><p className="kicker">OPTIONAL MATERIALS</p><h2>需要时再查<br />Slides 与视频。</h2></div><p>先读上面的中文教材；遇到需要听讲解或核对原始定义的地方，再按周查看对应的官方课件与录像。</p></div>
         <div className="week-tabs" role="tablist" aria-label="学习周次">{weeks.map((item, index) => <button key={item.number} role="tab" aria-selected={active === index} className={active === index ? "active" : ""} onClick={() => setActive(index)}><span>{item.number}</span>{item.eyebrow}</button>)}</div>
         <article className="week-panel">
           <div className="week-main"><p className="kicker">WEEK {week.number} · {week.hours}</p><h3>{week.title}</h3><p className="outcome">{week.outcome}</p><a className="button primary" href={week.guideHref}>阅读本周中文教材 <span>↗</span></a><div className="resources"><p className="label">OPTIONAL · SLIDES ↔ MATCHED VIDEO</p>{week.resources.map((resource) => <div className="resource-pair" key={resource.href}><a href={resource.href} target="_blank" rel="noreferrer" className="resource-link"><span>课件</span>{resource.label}</a>{resource.videoHref && <a href={resource.videoHref} target="_blank" rel="noreferrer" className="video-link"><span>视频</span>{resource.videoLabel}</a>}</div>)}</div></div>

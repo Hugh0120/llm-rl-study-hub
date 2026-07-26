@@ -15,6 +15,12 @@
     h1 em { color:var(--acid); font-style:normal; } .lead { max-width:670px; color:#d3dbd2; font-size:19px; }
     .button { display:inline-block; margin:20px 10px 0 0; padding:12px 17px; border:1px solid var(--acid); color:var(--ink); background:var(--acid); text-decoration:none; font-weight:800; }
     .button.alt { background:transparent; color:var(--paper); } main section { padding:72px max(24px,8vw); }
+    .guide-index { background:#eef1e7; } .guide-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-top:36px; }
+    .guide-card { min-height:300px; padding:26px; border:1px solid #cbd0c3; background:var(--paper); text-decoration:none; display:flex; flex-direction:column; transition:.18s transform,.18s border-color,.18s box-shadow; }
+    .guide-card:hover { transform:translateY(-4px); border-color:var(--green); box-shadow:0 12px 28px rgba(23,59,53,.09); }
+    .guide-meta { display:flex; justify-content:space-between; color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.12em; }
+    .guide-card h3 { font-size:clamp(28px,3vw,42px); margin:46px 0 12px; } .guide-card p { color:var(--muted); margin:0 0 12px; }
+    .guide-topics { color:var(--green); font-size:12px; font-weight:800; margin-bottom:24px; } .guide-enter { margin-top:auto; border-top:1px solid var(--line); padding-top:15px; font-weight:800; display:flex; justify-content:space-between; }
     .intro { display:grid; grid-template-columns:1fr 1fr; gap:48px; border-bottom:1px solid var(--line); }
     h2 { font-size:clamp(36px,5vw,68px); margin:12px 0 0; } .muted { color:var(--muted); }
     .weeks { display:grid; gap:16px; } .week { border:1px solid var(--line); display:grid; grid-template-columns:160px 1fr; }
@@ -29,7 +35,7 @@
     .term { background:var(--paper); padding:34px max(24px,3vw); min-height:220px; } .term h3 { font-size:34px; margin:46px 0 8px; }
     .end { background:var(--green); color:var(--paper); } .end h2 { color:var(--acid); max-width:800px; }
     footer { padding:24px max(24px,8vw); color:var(--muted); font-size:13px; }
-    @media(max-width:760px) { .intro { grid-template-columns:1fr; gap:16px; } .week { grid-template-columns:1fr; } .terms { grid-template-columns:1fr 1fr; } }
+    @media(max-width:760px) { .guide-grid { grid-template-columns:1fr; } .intro { grid-template-columns:1fr; gap:16px; } .week { grid-template-columns:1fr; } .terms { grid-template-columns:1fr 1fr; } }
     @media(max-width:480px) { .terms { grid-template-columns:1fr; } }
   </style>
 </head>
@@ -38,11 +44,23 @@
     <div class="eyebrow">LLM / RL · FOR ALGORITHM ENGINEERS · 4 WEEKS</div>
     <h1>把大模型<br><em>后训练</em>做成能力。</h1>
     <p class="lead">适合已有 CV、NLP 与大模型基础的算法工程师：从策略梯度直达 PPO、RLHF、GRPO 与可验证推理训练。所有学习资料均为官方链接。</p>
-    <a class="button" href="week1.html">开始四周中文教材 ↗</a>
+    <a class="button" href="week1.html">从第 1 周开始 ↗</a>
+    <a class="button alt" href="#guides">打开四周教材目录 ↓</a>
     <a class="button alt" href="https://rail.eecs.berkeley.edu/deeprlcourse/" target="_blank" rel="noreferrer">CS285 官方主页 ↗</a>
   </header>
 
   <main>
+    <section id="guides" class="guide-index">
+      <div class="eyebrow">START HERE</div><h2>四份中文教材，按顺序直接学。</h2>
+      <p class="muted">每一周都是可独立阅读的完整章节，公式、符号、推导和工程上下文已经串联；Slides 与视频仅作为后面的补充材料。</p>
+      <div class="guide-grid">
+        <a class="guide-card" href="week1.html"><div class="guide-meta"><span>WEEK 01</span><span>12–15H</span></div><h3>策略梯度、Advantage 与 PPO</h3><p>从 token 概率出发，推到 REINFORCE、GAE 与 PPO。</p><div class="guide-topics">MDP · REINFORCE · GAE · PPO</div><div class="guide-enter">进入第 1 周教材 <span>↗</span></div></a>
+        <a class="guide-card" href="week2.html"><div class="guide-meta"><span>WEEK 02</span><span>12–15H</span></div><h3>RLHF、可验证奖励与 GRPO</h3><p>把偏好学习、验证器和推理强化学习连成方法地图。</p><div class="guide-topics">RLHF · DPO · VERIFIER · RLVR · GRPO</div><div class="guide-enter">进入第 2 周教材 <span>↗</span></div></a>
+        <a class="guide-card" href="week3.html"><div class="guide-meta"><span>WEEK 03</span><span>12–15H</span></div><h3>把 LLM RL 真正跑起来</h3><p>从张量契约和 mask 开始，跑通 rollout、奖励、KL 与更新。</p><div class="guide-topics">TENSOR · MASK · ROLLOUT · KL · SMOKE TEST</div><div class="guide-enter">进入第 3 周教材 <span>↗</span></div></a>
+        <a class="guide-card" href="week4.html"><div class="guide-meta"><span>WEEK 04</span><span>12–15H</span></div><h3>实验、诊断与 Agent RL</h3><p>建立可复盘实验，识别 reward hacking，并迁移到 Agent 环境。</p><div class="guide-topics">ABLATION · REWARD HACKING · AGENT RL</div><div class="guide-enter">进入第 4 周教材 <span>↗</span></div></a>
+      </div>
+    </section>
+
     <section class="intro">
       <div><div class="eyebrow">THE ROUTE</div><h2>四周，只保留真正需要的内容。</h2></div>
       <p class="muted">目标不是泛读传统强化学习，而是能建立并诊断一条 LLM RL 训练管线：rollout、reward / verifier、advantage、policy update、评估与 reward hacking 风险。</p>
