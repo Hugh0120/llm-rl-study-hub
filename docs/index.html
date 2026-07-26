@@ -4,37 +4,40 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="面向算法工程师的四周 LLM 强化学习学习路径，全部链接指向官方课程资料。">
+  <meta name="theme-color" content="#f7f6f0" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e120f" media="(prefers-color-scheme: dark)">
   <title>LLM RL 学习路径｜4 周加速版</title>
   <style>
-    :root { --ink:#101511; --paper:#f7f6f0; --acid:#d8ff47; --green:#173b35; --muted:#657067; --line:#d5d8ce; }
+    :root { color-scheme:light; --ink:#101511; --paper:#f7f6f0; --acid:#d8ff47; --green:#173b35; --muted:#657067; --line:#d5d8ce; --link:#173b35; --card:#f7f6f0; --section-soft:#eef1e7; --grid-line:#bfc6b6; --hero:#101511; --hero-text:#f7f6f0; --on-acid:#101511; }
     * { box-sizing:border-box; } html { scroll-behavior:smooth; }
     body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.55 Arial,"Microsoft YaHei",sans-serif; }
-    a { color:inherit; } .hero { background:var(--ink); color:var(--paper); padding:56px max(24px,8vw) 72px; }
+    a { color:inherit; } .hero { background:var(--hero); color:var(--hero-text); padding:56px max(24px,8vw) 72px; }
     .eyebrow { color:var(--acid); font-size:12px; font-weight:800; letter-spacing:.12em; }
     h1,h2,h3 { letter-spacing:-.04em; line-height:1; } h1 { max-width:850px; font-size:clamp(52px,9vw,112px); margin:28px 0; }
     h1 em { color:var(--acid); font-style:normal; } .lead { max-width:670px; color:#d3dbd2; font-size:19px; }
-    .button { display:inline-block; margin:20px 10px 0 0; padding:12px 17px; border:1px solid var(--acid); color:var(--ink); background:var(--acid); text-decoration:none; font-weight:800; }
-    .button.alt { background:transparent; color:var(--paper); } main section { padding:72px max(24px,8vw); }
-    .guide-index { background:#eef1e7; } .guide-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-top:36px; }
-    .guide-card { min-height:300px; padding:26px; border:1px solid #cbd0c3; background:var(--paper); text-decoration:none; display:flex; flex-direction:column; transition:.18s transform,.18s border-color,.18s box-shadow; }
-    .guide-card:hover { transform:translateY(-4px); border-color:var(--green); box-shadow:0 12px 28px rgba(23,59,53,.09); }
+    .button { display:inline-block; margin:20px 10px 0 0; padding:12px 17px; border:1px solid var(--acid); color:var(--on-acid); background:var(--acid); text-decoration:none; font-weight:800; }
+    .button.alt { background:transparent; color:var(--hero-text); } main section { padding:72px max(24px,8vw); }
+    .guide-index { background:var(--section-soft); } .guide-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-top:36px; }
+    .guide-card { min-height:300px; padding:26px; border:1px solid var(--line); background:var(--card); text-decoration:none; display:flex; flex-direction:column; transition:.18s transform,.18s border-color,.18s box-shadow; }
+    .guide-card:hover { transform:translateY(-4px); border-color:var(--link); box-shadow:0 12px 28px rgba(0,0,0,.14); }
     .guide-meta { display:flex; justify-content:space-between; color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.12em; }
     .guide-card h3 { font-size:clamp(28px,3vw,42px); margin:46px 0 12px; } .guide-card p { color:var(--muted); margin:0 0 12px; }
-    .guide-topics { color:var(--green); font-size:12px; font-weight:800; margin-bottom:24px; } .guide-enter { margin-top:auto; border-top:1px solid var(--line); padding-top:15px; font-weight:800; display:flex; justify-content:space-between; }
+    .guide-topics { color:var(--link); font-size:12px; font-weight:800; margin-bottom:24px; } .guide-enter { margin-top:auto; border-top:1px solid var(--line); padding-top:15px; font-weight:800; display:flex; justify-content:space-between; }
     .intro { display:grid; grid-template-columns:1fr 1fr; gap:48px; border-bottom:1px solid var(--line); }
     h2 { font-size:clamp(36px,5vw,68px); margin:12px 0 0; } .muted { color:var(--muted); }
     .weeks { display:grid; gap:16px; } .week { border:1px solid var(--line); display:grid; grid-template-columns:160px 1fr; }
     .week-no { background:var(--green); color:var(--acid); padding:26px; font-size:36px; font-weight:900; }
     .week-body { padding:26px; } .week h3 { margin:0 0 10px; font-size:30px; } .week p { margin:10px 0; }
     .links { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px; margin-top:18px; }
-    .links a { border-bottom:1px solid var(--line); padding:8px 0; text-decoration:none; font-weight:700; } .links a:hover { color:var(--green); }
+    .links a { border-bottom:1px solid var(--line); padding:8px 0; text-decoration:none; font-weight:700; } .links a:hover { color:var(--link); }
     .pair-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; margin-top:22px; }
     .pair { border:1px solid var(--line); padding:18px; } .pair h3 { margin:0 0 14px; font-size:20px; }
-    .pair a { display:block; padding:5px 0; color:var(--green); font-size:14px; font-weight:700; }
-    .terms { background:#e3e7db; display:grid; grid-template-columns:repeat(4,1fr); gap:1px; padding:0!important; }
-    .term { background:var(--paper); padding:34px max(24px,3vw); min-height:220px; } .term h3 { font-size:34px; margin:46px 0 8px; }
-    .end { background:var(--green); color:var(--paper); } .end h2 { color:var(--acid); max-width:800px; }
+    .pair a { display:block; padding:5px 0; color:var(--link); font-size:14px; font-weight:700; }
+    .terms { background:var(--grid-line); display:grid; grid-template-columns:repeat(4,1fr); gap:1px; padding:0!important; }
+    .term { background:var(--card); padding:34px max(24px,3vw); min-height:220px; } .term h3 { font-size:34px; margin:46px 0 8px; }
+    .end { background:var(--green); color:var(--hero-text); } .end h2 { color:var(--acid); max-width:800px; }
     footer { padding:24px max(24px,8vw); color:var(--muted); font-size:13px; }
+    @media(prefers-color-scheme:dark) { :root { color-scheme:dark; --ink:#e8eee9; --paper:#0e120f; --green:#16433a; --muted:#a7b1a8; --line:#303a32; --link:#8ed6ba; --card:#141a16; --section-soft:#101713; --grid-line:#2a342c; --hero:#090c0a; } }
     @media(max-width:760px) { .guide-grid { grid-template-columns:1fr; } .intro { grid-template-columns:1fr; gap:16px; } .week { grid-template-columns:1fr; } .terms { grid-template-columns:1fr 1fr; } }
     @media(max-width:480px) { .terms { grid-template-columns:1fr; } }
   </style>
