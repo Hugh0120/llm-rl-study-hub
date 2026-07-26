@@ -9,10 +9,16 @@ const pages = [
     file: "week1.html",
     required: [
       "第三章：从“整份答案得几分”到“这一步比预期好多少”",
+      "本章开头暂时不再给这条规则起新的公式名",
+      "表示它是用样本算出的估计值",
       "先构造“正常水平”作为参照",
       "第四章：同一批 rollout 为什么不能随便多训",
     ],
-    forbidden: ["从绝对回报到 Advantage —— 建立相对表现的参照系"],
+    forbidden: [
+      "从绝对回报到 Advantage —— 建立相对表现的参照系",
+      "第二章已经得到一个能训练的规则",
+      "\\mathcal L_{\\text{PG}}",
+    ],
     localLinks: ["index.html", "week2.html"],
   },
   {

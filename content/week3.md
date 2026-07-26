@@ -47,7 +47,10 @@
 - \(L\)：padding 后序列长度；
 - \(V\)：词表大小。
 
-模型输出：
+模型输出一个三维实数张量。数学上写作
+\(\mathbb R^{B\times L\times V}\)：\(\mathbb R\) 表示元素是实数，
+右上角三个维度依次是 batch、序列位置和词表；这里的 \(\mathbb R\)
+不是 reward。于是：
 
 \[
 \texttt{logits}\in\mathbb R^{B\times L\times V}.
@@ -142,7 +145,9 @@ def masked_mean(x, mask, dim=None, eps=1e-8):
     return numerator / denominator
 ```
 
-序列平均 log-prob：
+把第 \(i\) 条序列在所有有效 completion token 上的平均 log-prob
+记作 \(\bar\ell_i\)：横线表示平均，\(\ell\) 是 log-likelihood
+的惯用字母，下标 \(i\) 表示第 \(i\) 条序列。定义为：
 
 \[
 \bar\ell_i
@@ -396,7 +401,9 @@ def token_logprobs(model, input_ids, attention_mask):
 
 ## 4.2 sampled KL 为什么用这个形式
 
-在当前策略采到的 token 上：
+在当前策略采到的 token 上，先计算 reference log-prob 减去 current
+log-prob。把这个差记作 \(\Delta_t\)：大写希腊字母 delta 常用来表示差，
+下标 \(t\) 表示 token 位置：
 
 \[
 \Delta_t
@@ -405,7 +412,8 @@ def token_logprobs(model, input_ids, attention_mask):
 -\log\pi_\theta(a_t\mid s_t).
 \]
 
-定义：
+再把这个差转换成 sampled KL contribution。记作
+\(\widehat k_t\)：\(k\) 表示 KL contribution，帽子表示采样估计：
 
 \[
 \widehat k_t=e^{\Delta_t}-\Delta_t-1.
@@ -467,7 +475,8 @@ GR-REINFORCE 不需要 old/current ratio，也不需要复用多个 epoch。它�
 {\sum_t m_{i,t}}.
 \]
 
-策略 loss：
+策略 loss 记作 \(\mathcal L_{\text{pg}}\)：\(\mathcal L\) 表示 loss，
+下标 `pg` 表示 policy gradient：
 
 \[
 \mathcal L_{\text{pg}}

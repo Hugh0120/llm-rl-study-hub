@@ -1,14 +1,10 @@
 # 第三章：从“整份答案得几分”到“这一步比预期好多少”
 
-第二章已经得到一个能训练的规则：
+第二章已经得到一个能训练的动作规则：
 
-\[
-\mathcal L_{\text{PG}}
-=
--\mathbb E_t\left[G_t\log\pi_\theta(a_t\mid s_t)\right].
-\]
+> 某一步之后得到的回报高，就提高当时采样 token 的概率；回报低，就降低它的概率。
 
-它的逻辑没有错：回报高，就提高已采样 token 的概率；回报低，就降低它的概率。真正的问题是，\(G_t\) 同时混入了两类信息：
+本章开头暂时不再给这条规则起新的公式名。真正需要解决的问题是：第二章使用的 \(G_t\)（从第 \(t\) 步开始实际得到的后续回报）同时混入了两类信息：
 
 1. 这道题本来有多难；
 2. 当前这个 token 选得是否比通常更好。
@@ -31,15 +27,29 @@
 - 简单题答对接近正常发挥；
 - 难题答对远高于正常发挥。
 
-如果都用 \(G=1\) 更新，策略看不见这种差别。因此我们先减去一个只由当前状态决定的参照 \(b(s_t)\)：
+如果都用 \(G=1\) 更新，策略看不见这种差别。因此先做一件不需要新术语的事：用实际回报减去当前前缀的正常水平。
 
 \[
-\widehat A_t=G_t-b(s_t).
+\underbrace{G_t}_{\text{这次实际后续回报}}
+-
+\underbrace{b(s_t)}_{\text{当前前缀的正常水平}}.
 \]
 
-先不要急着记 `advantage` 这个名称。把它读成一句中文即可：
+这里的 \(b\) 来自 baseline（参照）；\(b(s_t)\) 表示参照值只由当前状态 \(s_t\) 决定。
+
+先把上面的差值读成一句中文：
 
 > 当前动作之后得到的回报，减去站在当前前缀上原本预计能得到的回报。
+
+这个含义清楚后，再给差值一个方便后文引用的名字：**优势估计**。记作
+\(\widehat A_t\)：字母 \(A\) 来自 advantage；帽子 \(\widehat{\phantom A}\)
+表示它是用样本算出的估计值；下标 \(t\) 表示第 \(t\) 个生成位置。因此：
+
+\[
+\widehat A_t
+=
+G_t-b(s_t).
+\]
 
 于是：
 
@@ -83,7 +93,9 @@ b(s)\nabla_\theta 1=0.
 
 ## 3.3 最自然的参照：站在当前前缀上，平均能得多少分
 
-理想参照不是随便一个常数，而是当前策略从状态 \(s\) 继续生成时的期望回报：
+理想参照不是随便一个常数，而是“当前策略从状态 \(s\) 继续生成时，平均能得到多少后续回报”。这个量叫**状态价值**。
+
+课本用字母 \(V\) 表示 value；右上角的 \(\pi\) 表示“平均结果取决于当前使用的策略 \(\pi\)”。定义为：
 
 \[
 V^\pi(s)
@@ -91,12 +103,12 @@ V^\pi(s)
 \mathbb E_{\tau\sim\pi}\left[G_t\mid s_t=s\right].
 \]
 
-\(V^\pi(s)\) 叫作状态价值。对 LLM：
+对 LLM：
 
 - \(s_t\)：prompt 加已经生成的 token；
 - \(V^\pi(s_t)\)：从这个前缀继续采样，最终平均能得到多少回报。
 
-如果还固定当前动作，就得到动作价值：
+如果除了状态，还固定当前选择的动作，就得到**动作价值**。课本约定用字母 \(Q\) 表示它；\(Q\) 只是历史沿用的记号，不是另一个缩写。定义为：
 
 \[
 Q^\pi(s,a)
@@ -104,7 +116,7 @@ Q^\pi(s,a)
 \mathbb E_{\tau\sim\pi}\left[G_t\mid s_t=s,a_t=a\right].
 \]
 
-两者之差才正式叫优势：
+动作价值减去状态价值，才正式叫**优势**。既然英文是 advantage，就用字母 \(A\)：
 
 \[
 A^\pi(s,a)=Q^\pi(s,a)-V^\pi(s).
@@ -134,7 +146,9 @@ V(s_{\text{easy}})=0.9,\qquad V(s_{\text{hard}})=0.05.
 
 真实的 \(V^\pi\) 是未知期望。我们用一个带参数的预测器 \(V_\phi(s)\) 逼近它。
 
-最直接的训练标签，是 rollout 已经发生后算出的实际回报 \(G_t\)：
+最直接的训练标签，是 rollout 已经发生后算出的实际回报 \(G_t\)。
+
+下面需要第一次给一个 loss 命名：\(\mathcal L\) 表示“训练时要最小化的损失”，下标 \(V\) 表示这是 value 的回归损失。因此 \(\mathcal L_V(\phi)\) 读作“参数为 \(\phi\) 的 value loss”：
 
 \[
 \mathcal L_V(\phi)
@@ -160,7 +174,11 @@ V(s_{\text{easy}})=0.9,\qquad V(s_{\text{hard}})=0.05.
 1. critic 学习“正常水平”；
 2. actor 根据“实际表现减正常水平”更新。
 
-二者的 loss 不同，参数也可以不同：
+二者的 loss 不同，参数也可以不同。下面的
+\(\mathcal L_{\text{actor}}\) 和 \(\mathcal L_{\text{critic}}\)
+只是两个 loss 的名称，下标说明它分别训练哪一个角色。
+\(\widehat V_t^{\text{target}}\) 暂时表示“critic 应该拟合的 value
+训练目标”；它的具体构造会从下一节开始逐步推出：
 
 \[
 \mathcal L_{\text{actor}}
@@ -188,7 +206,9 @@ V^\pi(s_t)
 \mathbb E\left[r_t+\gamma V^\pi(s_{t+1})\mid s_t\right].
 \]
 
-把期望换成这次真实转移，并把真实 value 换成预测器，得到一步目标：
+把期望换成这次真实转移，并把真实 value 换成预测器，就得到一个只向前看一步的训练目标。
+
+把它记作 \(\widehat V_t^{(1)}\)：帽子表示估计目标，上标 \((1)\) 表示只使用一步真实转移，下标 \(t\) 表示它属于状态 \(s_t\)：
 
 \[
 \widehat V_t^{(1)}
@@ -196,19 +216,27 @@ V^\pi(s_t)
 r_t+\gamma V_\phi(s_{t+1}).
 \]
 
-“目标减当前预测”是：
+接着计算“这次一步目标减去更新前的当前预测”：
 
 \[
-\delta_t
-=
-r_t+\gamma V_\phi(s_{t+1})-V_\phi(s_t).
+\underbrace{
+r_t+\gamma V_\phi(s_{t+1})-V_\phi(s_t)
+}_{\text{走完一步后，价值预期需要修正多少}}.
 \]
-
-先读含义，再记名字：
 
 > 走完这一步以后，新的信息让我们把最终回报预期上调了多少或下调了多少。
 
-这个量叫 **temporal-difference error，TD 误差**。`temporal difference` 指相邻时间步价值预测之间的差，不是另一种 reward。
+现在含义已经明确，再给它命名：这个量叫
+**temporal-difference error，TD 误差**。课本用希腊字母
+\(\delta\)（delta，常用来表示“差”），所以下标为第 \(t\) 步的 TD 误差写作：
+
+\[
+\delta_t
+\equiv
+r_t+\gamma V_\phi(s_{t+1})-V_\phi(s_t).
+\]
+
+`temporal difference` 指相邻时间步价值预测之间的差，不是另一种 reward。
 
 ### 数值例子：一个 token 如何获得局部信号
 
@@ -244,7 +272,9 @@ V(s_{t+1})=0.60.
 
 一步目标依赖 \(V_\phi(s_{t+1})\)。预测器尚不准确时，它会把自己的误差带回训练，这叫 **bootstrapping（自举）**。
 
-另一个极端是一直看到终局：
+另一个极端是一直看到终局。它叫 Monte Carlo target，缩写 MC。
+把第 \(t\) 步的这个估计目标记作
+\(\widehat V_t^{(\text{MC})}\)：帽子表示估计，括号中的 MC 说明它一直使用真实 reward 到终局：
 
 \[
 \widehat V_t^{(\text{MC})}
@@ -254,7 +284,9 @@ r_t+\gamma r_{t+1}+\cdots+\gamma^{T-t}r_T.
 
 它不依赖未来 value 预测，偏差小，但不同 rollout 的结果波动大。
 
-中间方案是 \(n\)-step target：
+中间方案是 \(n\)-step target：先使用 \(n\) 步真实 reward，再从第
+\(t+n\) 个状态的 value 预测自举。相应目标记作
+\(\widehat V_t^{(n)}\)：
 
 \[
 \widehat V_t^{(n)}
@@ -273,7 +305,9 @@ r_t+\gamma r_{t+1}+\cdots+\gamma^{T-t}r_T.
 
 ## 3.7 GAE：把不同视野的 TD 信息做指数加权
 
-我们已经有每一步的预测修正 \(\delta_t\)。可以把未来若干步的修正累加：
+我们已经有每一步的预测修正 \(\delta_t\)。可以把未来若干步的修正累加。下面
+\(\widehat A_t^{(1)}\)、\(\widehat A_t^{(2)}\) 和
+\(\widehat A_t^{(3)}\) 的上标表示分别累计 1、2、3 个 TD 修正项：
 
 \[
 \widehat A_t^{(1)}=\delta_t,
@@ -288,7 +322,9 @@ r_t+\gamma r_{t+1}+\cdots+\gamma^{T-t}r_T.
 +\gamma^2\delta_{t+2}.
 \]
 
-希望近处权重大、远处逐渐衰减，就得到：
+希望近处权重大、远处逐渐衰减，就得到 GAE。
+\(\lambda\in[0,1]\) 是人为选择的衰减系数；每向未来多走一步，权重就再乘一次
+\(\gamma\lambda\)。因此：
 
 \[
 \widehat A_t^{\text{GAE}(\gamma,\lambda)}
@@ -396,7 +432,9 @@ f(a).
 \end{aligned}
 \]
 
-定义概率比：
+沿用 PPO 文献的习惯，把概率比记作 \(r_t(\theta)\)。这里的字母
+\(r\) 表示 ratio，**不是前文的环境 reward \(r_t\)**；代码里建议直接命名为
+`ratio_t`，避免混淆。定义为：
 
 \[
 r_t(\theta)
@@ -410,7 +448,8 @@ r_t(\theta)
 \right).
 \]
 
-于是旧样本上的策略目标可写成：
+于是旧样本上的策略目标可写成一个“替代目标”。
+\(\mathcal L\) 表示优化目标，下标 `surrogate` 表示它是在旧样本上替代当前策略真实目标的近似名称：
 
 \[
 \mathcal L_{\text{surrogate}}(\theta)
@@ -431,6 +470,12 @@ r_t(\theta)
 若 \(\widehat A_t>0\)，最大化 \(r_t\widehat A_t\) 会持续增大 \(r_t\)；若 \(\widehat A_t<0\)，会持续减小 \(r_t\)。在同一批数据上训练很多次，模型可能极端放大少量偶然成功样本。
 
 PPO 的核心是：超出一个局部区间后，不再从这批旧样本获得额外“便宜收益”。
+
+把这个带截断的目标命名为
+\(\mathcal L_{\text{clip}}\)：\(\mathcal L\) 表示目标，`clip` 表示使用截断规则。
+\(\operatorname{clip}(r,1-\epsilon,1+\epsilon)\) 的意思是把 \(r\)
+限制到区间内：低于下界就取下界，高于上界就取上界；外层
+\(\min\) 再从原目标和截断目标中取较小者。公式是：
 
 \[
 \mathcal L_{\text{clip}}(\theta)
@@ -484,7 +529,11 @@ PPO 不是把所有 ratio 都硬裁成区间，而是用 `min` 构造悲观目�
 
 ## 4.5 clip 不等于真正的距离保证
 
-clip 只作用于样本中的动作概率比，不保证整个词表分布的 KL 一定小。因此至少监控：
+clip 只作用于样本中的动作概率比，不保证整个词表分布的 KL 一定小。因此至少监控 KL divergence。
+
+课本把它写成 \(D_{\mathrm{KL}}(P\|Q)\)：\(D\) 表示 divergence，
+下标 KL 是 Kullback–Leibler，竖线两边的顺序有意义。下面第一个式子比较
+old policy 与 current policy：
 
 \[
 D_{\mathrm{KL}}
@@ -540,6 +589,9 @@ TRPO 直接提出一个带 KL 约束的优化问题，在局部二阶近似下�
 
 ### 步骤一：冻结 rollout 快照
 
+箭头 \(\leftarrow\) 表示“把右边当前策略的参数复制给左边的 old
+policy”，不是求导，也不是让两份模型以后始终同步：
+
 \[
 \pi_{\text{old}}\leftarrow\pi_\theta.
 \]
@@ -579,6 +631,10 @@ R_i,&t=T_i.
 
 **路径 A：KL 进入 shaped reward**
 
+\(k_{i,t}\) 表示第 \(i\) 条回答、第 \(t\) 个 token 相对 reference
+policy 的偏离代价；\(\beta\) 控制这项代价的权重。于是任务 reward
+减去偏离代价后得到 shaped reward：
+
 \[
 r^{\text{shaped}}_{i,t}
 =
@@ -589,6 +645,9 @@ r^{\text{task}}_{i,t}
 随后用 shaped reward 计算 GAE。
 
 **路径 B：KL 作为单独 loss**
+
+下面公式中的三个 \(\mathcal L\) 分别表示 actor loss、value loss 和 KL loss；
+\(c_v\) 是 value loss 的系数，\(\beta\) 是 KL loss 的系数。它们只负责调节三部分在总 loss 中的相对尺度：
 
 \[
 \mathcal L
@@ -602,7 +661,10 @@ r^{\text{task}}_{i,t}
 
 ### 步骤四：冻结 advantage 与 old log-prob
 
-用 rollout 阶段保存的 value 和 reward 计算：
+用 rollout 阶段保存的 value 和 reward 计算两个量：
+
+- \(\widehat A_t\)：给 actor 使用的优势估计；
+- \(\widehat R_t\)：给 critic 回归的 value target。这里的帽子表示估计目标；它不是环境给出的原始 reward \(R_i\)。
 
 \[
 \widehat A_t=\operatorname{GAE}(r_t,V_{\text{old}}(s_t)),

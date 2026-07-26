@@ -45,13 +45,17 @@ prompt: 求解 23 × 17，并把最终答案写在 \boxed{} 中。
 
 ## 1.1 示范：把目标回答当监督标签
 
-若数据是：
+先用自然语言说清一条数据：第 \(i\) 条记录包含 prompt \(x_i\)
+和专家回答 \(y_i^\star\)，星号表示“这里把它当作目标答案”。把整批示范数据记作
+\(\mathcal D_{\text{demo}}\)：\(\mathcal D\) 表示 dataset，下标 `demo`
+表示 demonstration。于是：
 
 \[
 \mathcal D_{\text{demo}}=\{(x_i,y_i^\star)\},
 \]
 
-最自然的目标是最大似然：
+最自然的目标是最大似然。把训练时最小化的 SFT loss 记作
+\(\mathcal L_{\text{SFT}}\)：\(\mathcal L\) 表示 loss，下标说明训练方法：
 
 \[
 \mathcal L_{\text{SFT}}
@@ -68,7 +72,9 @@ SFT 很强，因为监督密集、训练稳定。但它优化的是“复现数�
 
 开放式任务往往没有唯一标准答案。让标注者分别给 1–10 分，容易受个人尺度影响；比较两个回答谁更好通常更稳定。
 
-数据变为：
+这时第 \(i\) 条数据包含同一个 prompt \(x_i\)、胜出回答
+\(y_{i,w}\) 和落败回答 \(y_{i,l}\)。把整批偏好数据记作
+\(\mathcal D_{\text{pref}}\)，下标 `pref` 表示 preference：
 
 \[
 \mathcal D_{\text{pref}}
@@ -125,7 +131,13 @@ def verifier(prompt, completion):
 
 ## 2.1 从“谁更好”到选择概率
 
-设一个未知函数 \(r_\phi(x,y)\) 表示回答的潜在质量。我们只观察到两两选择，因此建模：
+设一个未知函数 \(r_\phi(x,y)\) 表示回答的潜在质量，其中 \(\phi\)
+是这个打分模型的参数。
+
+我们要预测“胜出回答被选中”的概率。把这个概率记作
+\(P_\phi(y_w\succ y_l\mid x)\)：大写 \(P\) 表示 probability，下标
+\(\phi\) 表示概率由参数为 \(\phi\) 的打分模型决定。用
+\(\sigma\) 表示把任意实数压到 0–1 的 sigmoid 函数，于是：
 
 \[
 P_\phi(y_w\succ y_l\mid x)
@@ -135,7 +147,7 @@ r_\phi(x,y_w)-r_\phi(x,y_l)
 \right),
 \]
 
-其中：
+sigmoid 的具体定义是：
 
 \[
 \sigma(z)=\frac{1}{1+e^{-z}}.
@@ -147,7 +159,9 @@ r_\phi(x,y_w)-r_\phi(x,y_l)
 - \(y_w\) 高很多，概率趋近 1；
 - 顺序反过来，概率趋近 0。
 
-对已标注的胜者最大化似然，得到 reward model 的 loss：
+对已标注的胜者最大化似然，得到 reward model 的 loss。
+\(\mathcal L_{\text{RM}}\) 中 \(\mathcal L\) 表示 loss，下标 RM 表示
+reward model：
 
 \[
 \mathcal L_{\text{RM}}(\phi)
@@ -205,7 +219,10 @@ y\sim\pi_\theta(\cdot\mid x),
 \mathbb E[r_\phi(x,y)].
 \]
 
-但只追逐一个不完美预测器容易偏离自然语言能力，因此加入 reference 约束：
+但只追逐一个不完美预测器容易偏离自然语言能力，因此加入 reference 约束。
+\(\pi_{\text{ref}}\) 是冻结的参考策略；\(\beta>0\) 控制“追逐 reward”
+与“留在 reference 附近”的折中。下面的 \(\max_\theta\) 表示要寻找一组
+模型参数 \(\theta\)，使整个括号的平均值最大：
 
 \[
 \max_\theta\;
@@ -245,7 +262,9 @@ r_\phi(x,y)
 
 ## 3.1 先解一个“如果 reward 已知”的最优策略
 
-固定 prompt \(x\)，考虑所有回答 \(y\)。我们想同时：
+固定 prompt \(x\)，考虑所有回答 \(y\)。用 \(\pi(y\mid x)\) 表示
+我们暂时要寻找的回答概率分布；这里先优化整个分布 \(\pi\)，还不是直接优化神经网络参数。
+我们想同时：
 
 1. 提高期望 reward；
 2. 不要离 reference policy 太远。
@@ -263,7 +282,9 @@ r_\phi(x,y)
 \sum_y\pi(y\mid x)=1.
 \]
 
-对这个带归一化约束的问题求最优解，可得：
+对这个带归一化约束的问题求最优解，可得最优分布。
+\(\pi^\star\) 上的星号表示“最优解”；\(Z(x)\) 是 normalization
+constant，只负责让所有回答概率加起来等于 1：
 
 \[
 \pi^\star(y\mid x)
@@ -272,8 +293,6 @@ r_\phi(x,y)
 \pi_{\text{ref}}(y\mid x)
 \exp\left(\frac{r(x,y)}{\beta}\right),
 \]
-
-其中 \(Z(x)\) 只负责让概率和为 1。
 
 这句话比公式更重要：
 
@@ -306,7 +325,10 @@ r(x,y_w)-r(x,y_l)
 \end{aligned}
 \]
 
-现在用要训练的 \(\pi_\theta\) 代替未知最优策略，再代回 Bradley–Terry loss：
+现在用要训练的 \(\pi_\theta\) 代替未知最优策略，再代回
+Bradley–Terry loss。把得到的 loss 命名为
+\(\mathcal L_{\text{DPO}}\)：\(\mathcal L\) 表示 loss，下标 DPO
+说明它直接训练 policy：
 
 \[
 \mathcal L_{\text{DPO}}(\theta)
@@ -390,7 +412,9 @@ verifier 不一定是神谕。它只验证写进规则里的东西。
 
 ## 4.2 结果验证与过程验证
 
-若只检查最终答案：
+若只检查最终答案，就把 verifier 对 prompt \(x\) 和回答 \(y\)
+给出的序列 reward 记作 \(R(x,y)\)。符号
+\(\mathbf 1[\text{条件}]\) 是指示函数：条件成立取 1，否则取 0。因此：
 
 \[
 R(x,y)=\mathbf 1[\text{final}(y)=y^\star],
@@ -440,7 +464,10 @@ R_1,\ldots,R_G.
 
 ## 5.1 组内标准化不是魔法 value
 
-对同一 prompt 的一组 reward：
+对同一 prompt 的 \(G\) 个回答，用 \(R_j\) 表示第 \(j\) 个回答的
+reward。先算组均值 \(\mu_x\)；再算组标准差 \(\sigma_x\)；最后把第
+\(j\) 个回答的相对分数记作 \(A_j\)。\(\varepsilon\) 是防止除零的很小正数。
+依次为：
 
 \[
 \mu_x=\frac1G\sum_{j=1}^G R_j,
@@ -507,7 +534,9 @@ A_j=0.
 
 ## 5.2 先做最简单的在线更新：GR-REINFORCE
 
-对 completion \(y_i=(y_{i,1},\ldots,y_{i,T_i})\)，定义平均 completion log-prob：
+对 completion \(y_i=(y_{i,1},\ldots,y_{i,T_i})\)，先把它的逐 token
+log-prob 取平均。这个平均值记作 \(\bar\ell_i(\theta)\)：横线表示平均，
+\(\ell\) 是 log-likelihood 的惯用字母，下标 \(i\) 表示第 \(i\) 条回答：
 
 \[
 \bar\ell_i(\theta)
@@ -517,7 +546,9 @@ A_j=0.
 \log\pi_\theta(y_{i,t}\mid x_i,y_{i,<t}).
 \]
 
-最小化：
+把相应的 policy loss 命名为
+\(\mathcal L_{\text{GR-REINFORCE}}\)：每个回答的平均 log-prob
+由组内相对分数 \(A_i\) 加权，然后取负号以便最小化：
 
 \[
 \mathcal L_{\text{GR-REINFORCE}}
@@ -537,7 +568,9 @@ A_j=0.
 
 ## 5.3 reference KL 的逐 token 采样估计
 
-定义采样 token 上：
+先定义 sampled token 上 current 与 reference 的 log-prob 差。
+课本用大写希腊字母 \(\Delta\)（delta）表示差；这里特意采用
+`reference - current` 的方向：
 
 \[
 \Delta_t
@@ -546,7 +579,9 @@ A_j=0.
 -\log\pi_\theta(a_t\mid s_t).
 \]
 
-CS285 Homework 4 使用：
+CS285 Homework 4 再把这个差变成逐 token 的非负 KL 估计。
+把估计值记作 \(\widehat k_t\)：小写 \(k\) 表示 KL contribution，
+帽子表示它是采样估计：
 
 \[
 \widehat k_t
@@ -574,7 +609,8 @@ D_{\mathrm{KL}}
 
 相比直接用 \(-\Delta_t\)，这个估计量不会让单个样本出现“负 KL 惩罚”。
 
-加入正则后：
+加入正则后，把 policy loss 与平均 sampled KL 相加。下面没有新的算法：
+\(\mathcal L\) 是总 loss，\(\beta\) 是 KL 项的权重：
 
 \[
 \mathcal L
@@ -592,7 +628,9 @@ GR-REINFORCE 更新一次就重采样，稳定但样本利用率低。若要复�
 \log\pi_{\text{old}}(a_t\mid s_t).
 \]
 
-优化时重算 current log-prob：
+优化时重算 current log-prob，并计算 current/old 概率比。
+沿用 PPO 记号把它写成 \(r_{i,t}(\theta)\)，但这里的 \(r\) 表示
+ratio，**不是 reward**；实现里应命名为 `ratio`：
 
 \[
 r_{i,t}(\theta)
@@ -603,7 +641,9 @@ r_{i,t}(\theta)
 \right).
 \]
 
-用第一周已经推导的 clipped surrogate：
+用第一周已经推导的 clipped surrogate。把这一部分 policy loss
+命名为 \(\mathcal L_{\text{GRPO,pg}}\)，其中 `pg` 表示 policy-gradient
+部分：
 
 \[
 \mathcal L_{\text{GRPO,pg}}
@@ -618,7 +658,8 @@ r_{i,t}A_i,\;
 \right].
 \]
 
-再加 reference KL：
+再加 reference KL，就得到总的
+\(\mathcal L_{\text{GRPO}}\)：
 
 \[
 \mathcal L_{\text{GRPO}}

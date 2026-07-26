@@ -157,7 +157,10 @@ completion_length
 - pass@1：一次采样就成功的概率；
 - pass@k：允许采样 \(k\) 次，至少一次成功的概率。
 
-若对每题采样 \(n\) 次，其中 \(c\) 次正确，无偏估计常写为：
+若对每题采样 \(n\) 次，其中 \(c\) 次正确，就可以估计 pass@\(k\)。
+把估计值写成
+\(\widehat{\text{pass@}k}\)：帽子表示“由有限样本算出的估计”，不是新的指标。
+常用无偏估计为：
 
 \[
 \widehat{\text{pass@}k}
@@ -170,7 +173,8 @@ pass@k 上升但 pass@1 不升，可能只是分布尾部多了一些好样本�
 
 ## 2.5 不确定性不是可选装饰
 
-若 \(N\) 道独立题的正确率为 \(\hat p\)，粗略标准误：
+若 \(N\) 道独立题的正确率估计为 \(\hat p\)，可以估计它因有限题量产生的
+波动。标准误写作 \(\operatorname{SE}\)，即 standard error：
 
 \[
 \operatorname{SE}(\hat p)
@@ -528,7 +532,9 @@ audit success 下降
 | transition | 工具/环境执行后的新状态 |
 | reward | 任务成功、成本、安全与规则组合 |
 
-一条轨迹：
+把一次从开始到结束的 Agent 交互记作轨迹 \(\tau\)。希腊字母
+\(\tau\) 只是 trajectory 的惯用标签；\(o_t\) 表示第 \(t\) 次工具或环境
+返回的 observation。一条轨迹写成：
 
 \[
 \tau=(s_0,a_0,o_1,s_1,a_1,o_2,\ldots,s_T),
@@ -550,7 +556,15 @@ audit success 下降
 → 返回凭证
 ```
 
-最终 reward 可以拆成：
+最终 reward 需要同时覆盖成功、成本和安全。先定义四个部分：
+
+- \(R_{\text{task}}\)：任务是否真正成功；
+- \(C_{\text{tool}}\)：无效或重复工具调用的成本；
+- \(C_{\text{token}}\)：延迟与 token 成本；
+- \(C_{\text{safety}}\)：越权、缺少确认、泄露信息等安全成本；
+- \(\lambda_c,\lambda_t,\lambda_s\)：三类成本各自的权重。
+
+于是总 reward 可以写成：
 
 \[
 R
@@ -560,11 +574,6 @@ R_{\text{task}}
 -\lambda_t C_{\text{token}}
 -\lambda_s C_{\text{safety}}.
 \]
-
-- \(R_{\text{task}}\)：退款是否正确完成；
-- \(C_{\text{tool}}\)：无效/重复调用成本；
-- \(C_{\text{token}}\)：延迟与 token 成本；
-- \(C_{\text{safety}}\)：越权、缺少确认、泄露信息等严重惩罚。
 
 只奖励“最终状态已退款”，模型可能跳过确认或退款错误金额。reward 必须覆盖部署中真正不可妥协的约束。
 
