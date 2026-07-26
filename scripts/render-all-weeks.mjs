@@ -148,7 +148,7 @@ function createHtml(page, body) {
 <body>
   <div class="progress" id="progress"></div>
   <nav class="top">
-    <a class="brand" href="/">LLM / RL STUDY HUB</a>
+    <a class="brand" href="index.html">LLM / RL STUDY HUB</a>
     <div class="week-nav">${navigation(page)}</div>
     <a class="hide-mobile" href="#content">中文教材</a>
     <a class="primary" href="${page.officialUrl}" target="_blank" rel="noreferrer">${page.officialLabel}</a>
@@ -194,4 +194,3 @@ for (const page of pages) {
   ]);
   console.log(`Rendered ${page.slug}: ${html.length} bytes`);
 }
-
