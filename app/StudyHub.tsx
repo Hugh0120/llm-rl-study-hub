@@ -9,6 +9,7 @@ type Week = {
   title: string;
   outcome: string;
   hours: string;
+  guideHref: string;
   resources: Resource[];
   checklist: string[];
   deliverable: string;
@@ -21,6 +22,7 @@ const weeks: Week[] = [
     title: "策略梯度、Advantage 与 PPO",
     outcome: "建立从 token 概率到 reward-weighted update 的直觉。",
     hours: "12–15h",
+    guideHref: "/week1.html",
     resources: [
       { label: "CS285 · RL Basics", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-4.pdf", videoLabel: "Fall 2023 · Lecture 4: Introduction to RL", videoHref: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=4" },
       { label: "CS285 · Policy Gradients", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-5.pdf", videoLabel: "Fall 2023 · Lecture 5: Policy Gradients", videoHref: "https://www.youtube.com/playlist?list=PL_iWQOsE6TfVYGEGiAOMaOzzv41Jfm_Ps&index=5" },
@@ -41,6 +43,7 @@ const weeks: Week[] = [
     title: "RLHF、可验证奖励与 GRPO",
     outcome: "理解偏好奖励与结果验证器分别如何驱动训练。",
     hours: "12–15h",
+    guideHref: "/week2.html",
     resources: [
       { label: "CS224R · Reward Learning", href: "https://cs224r.stanford.edu/spring_2025/slides/08_cs224r_reward_learning_2025.pdf", videoLabel: "Spring 2025 · Lecture 8: Reward Learning", videoHref: "https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=8" },
       { label: "CS224R · RLHF / Preference Optimization", href: "https://cs224r.stanford.edu/spring_2025/slides/09_cs224r-2025-rlhf.pdf", videoLabel: "Spring 2025 · Lecture 9: RL for LLMs — Preference Optimization", videoHref: "https://www.youtube.com/playlist?list=PLoROMvodv4rPwxE0ONYRa_itZFdaKCylL&index=9" },
@@ -61,6 +64,7 @@ const weeks: Week[] = [
     title: "先跑通 format-copy",
     outcome: "用简单可验证任务验证完整训练管线，而不是盲目追求难题分数。",
     hours: "12–15h",
+    guideHref: "/week3.html",
     resources: [
       { label: "CS285 · Homework 4（读第 4–8 节）", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" },
       { label: "官方 starter code", href: "https://github.com/berkeleydeeprlcourse/homework_spring2026" },
@@ -79,6 +83,7 @@ const weeks: Week[] = [
     title: "math-hard、消融与 Agent RL",
     outcome: "把一次训练变成可复盘、可沟通的算法实验。",
     hours: "12–15h",
+    guideHref: "/week4.html",
     resources: [
       { label: "CS285 · Homework 4：math-hard / diagnostics", href: "https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" },
       { label: "Berkeley · Advanced LLM Agents", href: "https://rdi.berkeley.edu/adv-llm-agents/sp25" },
@@ -145,7 +150,7 @@ export function StudyHub() {
         <div className="section-heading"><div><p className="kicker">THE ROUTE</p><h2>四周，只保留<br />真正需要的内容。</h2></div><p>点击周卡切换内容。每份资料都跳转至课程官网，而非本地副本。</p></div>
         <div className="week-tabs" role="tablist" aria-label="学习周次">{weeks.map((item, index) => <button key={item.number} role="tab" aria-selected={active === index} className={active === index ? "active" : ""} onClick={() => setActive(index)}><span>{item.number}</span>{item.eyebrow}</button>)}</div>
         <article className="week-panel">
-          <div className="week-main"><p className="kicker">WEEK {week.number} · {week.hours}</p><h3>{week.title}</h3><p className="outcome">{week.outcome}</p><div className="resources"><p className="label">SLIDES ↔ MATCHED VIDEO</p>{week.resources.map((resource) => <div className="resource-pair" key={resource.href}><a href={resource.href} target="_blank" rel="noreferrer" className="resource-link"><span>课件</span>{resource.label}</a>{resource.videoHref && <a href={resource.videoHref} target="_blank" rel="noreferrer" className="video-link"><span>视频</span>{resource.videoLabel}</a>}</div>)}</div></div>
+          <div className="week-main"><p className="kicker">WEEK {week.number} · {week.hours}</p><h3>{week.title}</h3><p className="outcome">{week.outcome}</p><a className="button primary" href={week.guideHref}>阅读本周中文教材 <span>↗</span></a><div className="resources"><p className="label">OPTIONAL · SLIDES ↔ MATCHED VIDEO</p>{week.resources.map((resource) => <div className="resource-pair" key={resource.href}><a href={resource.href} target="_blank" rel="noreferrer" className="resource-link"><span>课件</span>{resource.label}</a>{resource.videoHref && <a href={resource.videoHref} target="_blank" rel="noreferrer" className="video-link"><span>视频</span>{resource.videoLabel}</a>}</div>)}</div></div>
           <div className="week-work"><p className="label">THIS WEEK, DO THIS</p><ul>{week.checklist.map((task, index) => { const key = `${active}-${index}`; return <li key={key}><button className={done[key] ? "check done" : "check"} aria-label={`标记任务 ${index + 1} 完成`} onClick={() => toggle(key)}>{done[key] ? "✓" : ""}</button><span>{task}</span></li>; })}</ul><div className="deliverable"><p className="label">STOP WHEN YOU HAVE</p><strong>{week.deliverable}</strong></div></div>
         </article>
       </section>
