@@ -12,6 +12,9 @@ const pages = [
     slug: "week1",
     replacementSource: path.join(projectDir, "content", "week1-ch3-onward.md"),
     replaceFrom: "\n# 第三章",
+    sectionReplacementSource: path.join(projectDir, "content", "week1-ch3.md"),
+    sectionReplaceFrom: "# 第三章",
+    sectionReplaceTo: "# 第四章",
     source: path.resolve(projectDir, "..", "第一周-CS285-策略优化与PPO-中文精读.md"),
     label: "WEEK 01 · SELF-CONTAINED EDITION",
     title: "从策略梯度到 PPO",
@@ -199,6 +202,21 @@ for (const page of pages) {
       throw new Error(`Cannot find replacement boundary ${page.replaceFrom} in ${page.source}`);
     }
     source = `${source.slice(0, boundary).trimEnd()}\n\n${replacement.trimStart()}`;
+  }
+  if (page.sectionReplacementSource) {
+    const sectionReplacement = await fs.readFile(page.sectionReplacementSource, "utf8");
+    const sectionStart = source.indexOf(page.sectionReplaceFrom);
+    const sectionEnd = source.indexOf(page.sectionReplaceTo, sectionStart);
+    if (sectionStart < 0 || sectionEnd < 0) {
+      throw new Error(
+        `Cannot find section boundaries ${page.sectionReplaceFrom}..${page.sectionReplaceTo}`,
+      );
+    }
+    source = [
+      source.slice(0, sectionStart).trimEnd(),
+      sectionReplacement.trim(),
+      source.slice(sectionEnd).trimStart(),
+    ].join("\n\n");
   }
   const body = renderMarkdown(source);
   const html = createHtml(page, body);

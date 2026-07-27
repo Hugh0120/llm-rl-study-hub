@@ -333,25 +333,58 @@ r_t+\gamma r_{t+1}+\cdots+\gamma^{T-t}r_T.
 (\gamma\lambda)^l\delta_{t+l}.
 \]
 
-实现时通常反向递推：
+把公式写成代码之前，先处理一条轨迹的边界。对第 \(t\) 步，先定义：
+
+- `terminated[t] = 0`：执行 \(a_t\) 后轨迹还没有真正结束，\(s_{t+1}\) 仍属于同一条轨迹；
+- `terminated[t] = 1`：执行 \(a_t\) 后到达真正的终止状态，例如生成 EOS、任务成功或明确失败。
+
+代码需要一个开关，决定能不能继续使用下一时刻的信息。这里把它直接命名为
+`continue_mask`：
+
+\[
+\texttt{continue\_mask}_t=1-\texttt{terminated}_t.
+\]
+
+| 当前这一步之后 | `terminated[t]` | `continue_mask` | 递推行为 |
+|---|---:|---:|---|
+| 同一条轨迹还在继续 | 0 | 1 | 保留 \(V(s_{t+1})\) 和后续 GAE |
+| 轨迹在这里真正结束 | 1 | 0 | 同时切断二者 |
+
+它叫 `mask`，只是因为乘以 0 会屏蔽不该跨越边界传播的信息；它不是一个新的强化学习量。于是反向递推可以写成：
 
 ```python
 gae = 0.0
 for t in reversed(range(T)):
-    nonterminal = 1.0 - done[t]
-    delta = reward[t] + gamma * value[t + 1] * nonterminal - value[t]
-    gae = delta + gamma * lam * nonterminal * gae
+    continue_mask = 1.0 - terminated[t]
+
+    delta = (
+        reward[t]
+        + gamma * value[t + 1] * continue_mask
+        - value[t]
+    )
+    gae = (
+        delta
+        + gamma * lam * continue_mask * gae
+    )
     advantage[t] = gae
 
 value_target = advantage + value[:-1]
 ```
+
+代入两个取值就能看清它的作用：
+
+- **尚未结束**：`continue_mask = 1`，所以
+  \(\delta_t=r_t+\gamma V(s_{t+1})-V(s_t)\)，后续的 GAE 也会继续向前传播；
+- **真正终止**：`continue_mask = 0`，所以
+  \(\delta_t=r_t-V(s_t)\)，并且 \(\widehat A_t=\delta_t\)。下一条轨迹的信息不会串进来。
 
 \(\lambda\) 控制“相信一步 critic”还是“更多相信真实后续”：
 
 - \(\lambda=0\)：退化为一步 TD，通常方差低、偏差高；
 - \(\lambda\to1\)：接近长视野回报，通常偏差低、方差高。
 
-`done` 不是实现细节。终止后没有下一个真实状态，必须切断自举，否则会把下一条样本的 value 串进本条轨迹。
+还要区分**真正终止**和**达到最大长度而被截断**。真正终止时没有合法的后续，必须令
+`continue_mask = 0`。达到最大长度只是采样器停止收集；任务本身可能仍能继续。如果保留了最后一个真实观测并希望 critic 估计其后续，就应继续 bootstrap，而不能因为“长度到了”自动当成真正终止。工程代码通常分别保存 `terminated` 和 `truncated`，避免一个含义模糊的 `done` 把两种情况混在一起。补齐 batch 的 `padding mask` 又是另一件事，它只负责排除填充 token。
 
 ## 3.8 只有终局 reward 时，GAE 到底做了什么
 
