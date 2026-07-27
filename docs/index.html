@@ -46,7 +46,7 @@
   <header class="hero">
     <div class="eyebrow">LLM / RL · FOR ALGORITHM ENGINEERS · 4 WEEKS</div>
     <h1>把大模型<br><em>后训练</em>做成能力。</h1>
-    <p class="lead">一套面向算法工程师的四周自包含课程：从策略梯度直达 PPO、RLHF、GRPO、可信实验与 Agent RL。正文独立可读，课件与视频均链接官方公开资料。</p>
+    <p class="lead">一套面向算法工程师的四周自包含课程：先集中建立强化学习地基，再学习反馈来源、工程实现、可信实验与多步工具交互。正文独立可读，课件与视频均链接官方公开资料。</p>
     <a class="button" href="week1.html">从第 1 周开始 ↗</a>
     <a class="button alt" href="#guides">打开四周教材目录 ↓</a>
     <a class="button alt" href="https://rail.eecs.berkeley.edu/deeprlcourse/" target="_blank" rel="noreferrer">CS285 官方主页 ↗</a>
@@ -57,16 +57,16 @@
       <div class="eyebrow">NEW COURSEWARE · 2026-07</div><h2>四份重新编排的中文教材，按因果顺序直接学。</h2>
       <p class="muted">每个新概念都按“问题 → 直觉 → 定义 → 推导 → 数值例子 → LLM 实现 → 检查点”展开；Slides 与视频只用于复习和核对，不是阅读前置条件。</p>
       <div class="guide-grid">
-        <a class="guide-card" href="week1.html"><div class="guide-meta"><span>WEEK 01</span><span>12–15H</span></div><h3>策略梯度、Advantage 与 PPO</h3><p>从一次 LLM 生成出发，依次建立回答概率、平均回报、策略梯度、value、GAE 与 PPO。</p><div class="guide-topics">LLM GENERATION · POLICY GRADIENT · VALUE · GAE · PPO</div><div class="guide-enter">进入第 1 周教材 <span>↗</span></div></a>
-        <a class="guide-card" href="week2.html"><div class="guide-meta"><span>WEEK 02</span><span>12–15H</span></div><h3>reward 从哪里来</h3><p>先分示范、偏好和 verifier，再自然推出 SFT、DPO、RLHF、GR-REINFORCE 与 GRPO。</p><div class="guide-topics">FEEDBACK · DPO · RLHF · RLVR · GRPO</div><div class="guide-enter">进入第 2 周教材 <span>↗</span></div></a>
-        <a class="guide-card" href="week3.html"><div class="guide-meta"><span>WEEK 03</span><span>12–15H</span></div><h3>实现一条可验证训练管线</h3><p>从 tensor 契约开始，逐层验证 shift、mask、rollout、reward、KL 与更新。</p><div class="guide-topics">TENSOR · MASK · ROLLOUT · KL · TEST</div><div class="guide-enter">进入第 3 周教材 <span>↗</span></div></a>
-        <a class="guide-card" href="week4.html"><div class="guide-meta"><span>WEEK 04</span><span>12–15H</span></div><h3>可信实验与 Agent RL</h3><p>用基线、消融、统计区间和行为审计证明结果，再迁移到工具 Agent。</p><div class="guide-topics">EVIDENCE · ABLATION · SAFETY · AGENT RL</div><div class="guide-enter">进入第 4 周教材 <span>↗</span></div></a>
+        <a class="guide-card" href="week1.html"><div class="guide-meta"><span>WEEK 01</span><span>12–15H</span></div><h3>从回答得分到稳定更新</h3><p>先跟完一次模型生成，再成块讲清“结果怎样改变概率、怎样判断相对表现、怎样安全复用旧回答”。</p><div class="guide-topics">逐步生成 · 平均回报 · 相对更新 · 受限复用</div><div class="guide-enter">进入第 1 周教材 <span>↗</span></div></a>
+        <a class="guide-card" href="week2.html"><div class="guide-meta"><span>WEEK 02</span><span>12–15H</span></div><h3>反馈怎样变成训练信号</h3><p>先分清示范、偏好和自动判题分别提供了什么信息，再推导匹配的数据与训练目标。</p><div class="guide-topics">示范 · 两两偏好 · 自动判题 · 在线探索</div><div class="guide-enter">进入第 2 周教材 <span>↗</span></div></a>
+        <a class="guide-card" href="week3.html"><div class="guide-meta"><span>WEEK 03</span><span>12–15H</span></div><h3>把训练规则实现成可靠代码</h3><p>不增加新的 RL 数学；固定四条数据接口，再逐层验证概率对齐、有效位置、分组、评分与更新。</p><div class="guide-topics">数据接口 · 张量契约 · 单元测试 · 故障诊断</div><div class="guide-enter">进入第 3 周教材 <span>↗</span></div></a>
+        <a class="guide-card" href="week4.html"><div class="guide-meta"><span>WEEK 04</span><span>12–15H</span></div><h3>证明训练有效并迁移到工具环境</h3><p>用对照、统计区间和行为审计证明改善，再把同一套决策结构迁移到多步工具交互。</p><div class="guide-topics">可信比较 · 受控实验 · 漏洞审计 · 工具交互</div><div class="guide-enter">进入第 4 周教材 <span>↗</span></div></a>
       </div>
     </section>
 
     <section class="intro">
       <div><div class="eyebrow">THE ROUTE</div><h2>四周，只保留真正需要的内容。</h2></div>
-      <p class="muted">目标不是泛读传统强化学习，而是能建立并诊断一条 LLM RL 训练管线：rollout、reward / verifier、advantage、policy update、评估与 reward hacking 风险。</p>
+      <p class="muted">目标不是泛读传统强化学习，也不是背算法缩写；而是先理解一条回答怎样产生、评分和更新，再亲手实现它，最后用可信证据判断训练是否真的改善了任务能力。</p>
     </section>
 
     <section>
@@ -99,14 +99,14 @@
     <section id="roadmap">
       <div class="eyebrow">WEEK BY WEEK</div><h2>学习路线</h2>
       <div class="weeks">
-        <article class="week"><div class="week-no">01</div><div class="week-body"><h3>策略梯度、Advantage 与 PPO</h3><p>把 prompt + 已生成 token 看作 state，把下一个 token 看作 action；理解 REINFORCE、value/baseline、PPO clipping 和 KL 约束。</p><div class="links"><a href="week1.html"><strong>中文教材：从策略梯度到 PPO ↗</strong></a><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-4.pdf" target="_blank">可选课件 · RL Basics ↗</a><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-5.pdf" target="_blank">可选课件 · Policy Gradients ↗</a></div></div></article>
-        <article class="week"><div class="week-no">02</div><div class="week-body"><h3>RLHF、可验证奖励与 GRPO</h3><p>从 Bradley-Terry 推导 reward model 与 DPO，再把 verifier、RLVR 和 GRPO 放进同一张方法地图。</p><div class="links"><a href="week2.html"><strong>中文教材：偏好、Verifier 与 GRPO ↗</strong></a><a href="https://cs224r.stanford.edu/spring_2025/slides/09_cs224r-2025-rlhf.pdf" target="_blank">可选课件 · RLHF / DPO ↗</a><a href="https://cs224r.stanford.edu/spring_2025/slides/10_cs224r-rl_for_reasoning_lecture.pdf" target="_blank">可选课件 · RL for Reasoning ↗</a></div></div></article>
-        <article class="week"><div class="week-no">03</div><div class="week-body"><h3>动手训练：先跑通 format-copy</h3><p>从 tensor 契约、parser、mask 与 log-prob 开始，逐步实现 GR-REINFORCE、GRPO、KL 和 smoke test。</p><div class="links"><a href="week3.html"><strong>中文教材：把 LLM RL 真正跑起来 ↗</strong></a><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" target="_blank">可选作业 · CS285 Homework 4 ↗</a><a href="https://github.com/berkeleydeeprlcourse/homework_spring2026" target="_blank">官方 starter code ↗</a></div></div></article>
-        <article class="week"><div class="week-no">04</div><div class="week-body"><h3>math-hard、消融与 Agent RL</h3><p>建立可信实验：统计不确定性、消融、reward hacking、成本分析，以及向业务 Agent 环境迁移。</p><div class="links"><a href="week4.html"><strong>中文教材：实验、诊断与 Agent RL ↗</strong></a><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" target="_blank">可选作业 · diagnostics ↗</a><a href="https://rdi.berkeley.edu/adv-llm-agents/sp25" target="_blank">Berkeley · Advanced LLM Agents ↗</a></div></div></article>
+        <article class="week"><div class="week-no">01</div><div class="week-body"><h3>强化学习地基：从回答得分到稳定更新</h3><p>一次性讲完后续反复依赖的四层基础：逐步生成与长期目标、结果怎样改变采样概率、怎样构造逐步更新权重，以及旧回答为什么只能受限复用。</p><div class="links"><a href="week1.html"><strong>中文教材：建立完整 RL 地基 ↗</strong></a><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-4.pdf" target="_blank">可选课件 · RL Basics ↗</a><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-5.pdf" target="_blank">可选课件 · Policy Gradients ↗</a></div></div></article>
+        <article class="week"><div class="week-no">02</div><div class="week-body"><h3>示范、偏好与自动判题</h3><p>先分清手中的反馈究竟告诉了我们什么，再依次推导固定数据训练、学习评分器和在线探索；算法名称只在对应目标已经讲清后出现。</p><div class="links"><a href="week2.html"><strong>中文教材：从反馈接口选择训练方法 ↗</strong></a><a href="https://cs224r.stanford.edu/spring_2025/slides/09_cs224r-2025-rlhf.pdf" target="_blank">可选课件 · RLHF / DPO ↗</a><a href="https://cs224r.stanford.edu/spring_2025/slides/10_cs224r-rl_for_reasoning_lecture.pdf" target="_blank">可选课件 · RL for Reasoning ↗</a></div></div></article>
+        <article class="week"><div class="week-no">03</div><div class="week-body"><h3>训练代码：让每个张量都可验证</h3><p>不再引入新的 RL 数学。先固定输入、分组、评分和模型快照四条接口，再逐层实现、测试并诊断训练循环。</p><div class="links"><a href="week3.html"><strong>中文教材：把训练规则实现成可靠代码 ↗</strong></a><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" target="_blank">可选作业 · CS285 Homework 4 ↗</a><a href="https://github.com/berkeleydeeprlcourse/homework_spring2026" target="_blank">官方 starter code ↗</a></div></div></article>
+        <article class="week"><div class="week-no">04</div><div class="week-body"><h3>可信实验与多步工具交互</h3><p>建立对照和统计证据，定位模型是否钻评分漏洞，再把同一套状态、动作、反馈和评估结构迁移到会调用工具的模型。</p><div class="links"><a href="week4.html"><strong>中文教材：证明训练有效并迁移到工具环境 ↗</strong></a><a href="https://rail.eecs.berkeley.edu/deeprlcourse/static/homeworks/hw4.pdf" target="_blank">可选作业 · diagnostics ↗</a><a href="https://rdi.berkeley.edu/adv-llm-agents/sp25" target="_blank">Berkeley · Advanced LLM Agents ↗</a></div></div></article>
       </div>
     </section>
 
-    <section class="terms"><article class="term"><span class="eyebrow">01</span><h3>SFT</h3><p>模仿高质量示范，是后训练的冷启动。</p></article><article class="term"><span class="eyebrow">02</span><h3>PPO</h3><p>稳定的在线策略更新；通过 clipping 与 KL 约束偏移。</p></article><article class="term"><span class="eyebrow">03</span><h3>DPO</h3><p>直接从偏好对学习，不需要在线 rollout。</p></article><article class="term"><span class="eyebrow">04</span><h3>GRPO</h3><p>同题多次采样，按组内相对奖励更新，适合可验证推理。</p></article></section>
+    <section class="terms"><article class="term"><span class="eyebrow">01</span><h3>先讲问题</h3><p>每一节先说明上一步留下了什么具体困难。</p></article><article class="term"><span class="eyebrow">02</span><h3>再算例子</h3><p>先用一条 LLM 回答和数字看懂计算方向。</p></article><article class="term"><span class="eyebrow">03</span><h3>后写公式</h3><p>所有符号先定义，公式只压缩已经讲清的逻辑。</p></article><article class="term"><span class="eyebrow">04</span><h3>最后命名</h3><p>算法名和缩写只在目标与推导完成后出现。</p></article></section>
     <section class="end"><div class="eyebrow">AFTER WEEK 4</div><h2>下一步：把 verifier 换成你的业务环境。</h2><p>数学、JSON、代码单测与工具调用都可以成为可验证奖励任务。先定义状态、动作、奖励、投机方式与评估集，再开始训练。</p><a class="button" href="https://rdi.berkeley.edu/adv-llm-agents/sp25" target="_blank" rel="noreferrer">进入 Agent RL 课程 ↗</a></section>
   </main>
   <footer>LLM / RL STUDY HUB · NEW COURSEWARE 2026-07 · 官方公开课程资料</footer>

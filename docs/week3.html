@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="第三周工程教材：rollout、verifier、group advantage、GR-REINFORCE、GRPO 与训练诊断。">
+  <meta name="description" content="第三周工程教材：从数据接口和张量契约到训练实现与故障诊断。">
   <meta name="theme-color" content="#f7f6f0" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0d110e" media="(prefers-color-scheme: dark)">
-  <title>把 LLM RL 真正跑起来｜LLM / RL Study Hub</title>
+  <title>把训练规则实现成可靠代码｜LLM / RL Study Hub</title>
   <link rel="stylesheet" href="vendor/katex.min.css">
   <style>
     :root{color-scheme:light;--paper:#f7f6f0;--ink:#111612;--muted:#657067;--line:#d7dacf;--deep:#173b35;--acid:#d8ff47;--code:#151a16;--link:#173b35;--soft:#e7eadf;--soft-code:#e8ebe2;--raised:#fff;--hero:#173b35;--on-acid:#111612}
@@ -41,22 +41,32 @@
     <a class="hide-mobile" href="#content">中文教材</a>
     <a class="primary" href="https://github.com/berkeleydeeprlcourse/homework_spring2026" target="_blank" rel="noreferrer">Starter Code ↗</a>
   </nav>
-  <header class="hero"><small>WEEK 03 · IMPLEMENTATION EDITION</small><h1>把 LLM RL 真正跑起来</h1><p>从 tensor 契约、parser、mask 与 log-prob 开始，逐步实现 GR-REINFORCE、GRPO、KL 和可诊断训练。</p></header>
+  <header class="hero"><small>WEEK 03 · IMPLEMENTATION EDITION</small><h1>把训练规则实现成可靠代码</h1><p>先固定输入、分组、评分和模型快照四条接口，再把已经推导过的训练规则落成张量、测试与可诊断循环。</p></header>
   <main class="layout" id="content">
-    <article><h1>第三周：把 LLM 强化学习实现成一条可验证的数据流水线</h1>
+    <article><h1>第三周：把已经推导过的训练规则实现成可靠代码</h1>
 <blockquote>
-<p>本周不是算法名词复习，而是一份实现教材。目标是把第二周的 GR-REINFORCE 和 GRPO 落成张量、纯函数、单元测试和可诊断训练循环。</p>
+<p>前两周已经完成概念与目标推导。本周不再引入新的 RL 数学，只把已经讲清楚的量落成张量、纯函数、单元测试和可诊断训练循环。</p>
 </blockquote>
+<p>进入代码前，先把本周依赖的四条接口一次性固定：</p>
+<ol>
+<li>当前模型对同一道题生成多条回答；</li>
+<li>判题程序为每条完整回答给出一个序列级分数；</li>
+<li>同题回答彼此比较，得到每条回答高于或低于组内正常水平的数值；</li>
+<li>训练时分别保留采样快照和长期参考模型，用于判断数据是否过期、模型是否漂移。</li>
+</ol>
+<p>第二周已经把第三条得到的数值命名为 group advantage，把“新回答只更新一次”和
+“同一批回答有限复用”分别命名为 GR-REINFORCE 与 GRPO。下面出现这些名称时，
+只是在实现已有接口，不是在暗中增加新算法。</p>
 <h2>本周最终产出</h2>
-<p>你将实现并验证：</p>
+<p>你将按数据流实现并验证：</p>
 <ol>
 <li>自回归 token log-prob 对齐；</li>
 <li>prompt、completion、padding 的严格 mask；</li>
 <li>verifier 与 reward 分项；</li>
-<li>同 prompt 分组与 group advantage；</li>
-<li>非负的 sampled reference KL；</li>
-<li>一次更新的 GR-REINFORCE；</li>
-<li>可有限复用 rollout 的 GRPO；</li>
+<li>同 prompt 回答的分组与相对分数；</li>
+<li>当前模型偏离长期参考模型的逐 token 估计；</li>
+<li>每批新回答只更新一次的训练版本；</li>
+<li>同一批回答可以有限复用的训练版本；</li>
 <li>从单元测试到十步 smoke test 的调试阶梯。</li>
 </ol>
 <p>先记住唯一总流程：</p>
@@ -192,7 +202,9 @@ token_logp = predictive_logits.log_softmax(-1).gather(
 ).squeeze(-1)                          # [B, L-1]
 </code></pre>
 <p>如果拿 <code>logits[:, 1:]</code> 对 <code>input_ids[:, 1:]</code>，就是让模型看到了目标 token 本身，语义错位。</p>
-<h2>1.3 completion mask 也必须跟着目标右移</h2>
+<h2>1.3 哪些 token 位置才应该参与训练</h2>
+<p>prompt 只是条件，padding 只是补齐形状；真正需要计算策略 loss 的，是回答部分的有效
+token。下面把“当前位置属于回答”记录为 <strong>completion mask（回答掩码）</strong>：</p>
 <p>设原始 <code>completion_mask[:, j]=1</code> 表示 <code>input_ids[:, j]</code> 属于 completion。<code>token_logp[:, j-1]</code> 才对应这个 token，所以：</p>
 <pre><code class="language-python">token_mask = completion_mask[:, 1:] * attention_mask[:, 1:]
 </code></pre>
@@ -210,7 +222,9 @@ token_mask:          [0,  1,  1,   1,   0]
 targets:             [P1, C0, C1, EOS, PAD]
 </code></pre>
 <p><code>token_mask</code> 中第一个 1 对应目标 <code>C0</code>。如果它对应 <code>P1</code> 或 <code>C1</code>，shift 就错了。</p>
-<h2>1.4 先固定 masked mean 的定义</h2>
+<h2>1.4 有效 token 的 loss 应该怎样平均</h2>
+<p>有了回答掩码后，求平均时必须先排除无效位置。课程把这种“只对 mask 为 1 的位置
+求平均”的运算叫 <strong>masked mean（掩码平均）</strong>。</p>
 <pre><code class="language-python">def masked_mean(x, mask, dim=None, eps=1e-8):
     mask = mask.to(x.dtype)
     numerator = (x * mask).sum(dim=dim)
@@ -310,7 +324,9 @@ assert torch.equal(
 </tbody></table>
 <p>reference 可以在 rollout 时一次算好，因为它冻结；current log-prob 必须在每个优化 step 重算。</p>
 <h1>第三章：先把 verifier 做成可信软件</h1>
-<h2>3.1 从 format-copy smoke task 开始</h2>
+<h2>3.1 先用一个只检查格式复制的最小任务</h2>
+<p>这个任务不考数学推理，只要求模型把输入中的目标字符串放进规定格式。它用于快速检查
+整条训练流水线是否连通，属于 <strong>smoke test（冒烟测试）</strong>：</p>
 <p>复杂数学任务同时包含生成、解析、reward、分组和优化，出错后很难定位。先用简单任务：</p>
 <pre><code class="language-text">prompt: 把字符串 &quot;blue-17&quot; 放进 &lt;answer&gt;...&lt;/answer&gt;。
 target: &lt;answer&gt;blue-17&lt;/answer&gt;

@@ -1,18 +1,29 @@
-# 第三周：把 LLM 强化学习实现成一条可验证的数据流水线
+# 第三周：把已经推导过的训练规则实现成可靠代码
 
-> 本周不是算法名词复习，而是一份实现教材。目标是把第二周的 GR-REINFORCE 和 GRPO 落成张量、纯函数、单元测试和可诊断训练循环。
+> 前两周已经完成概念与目标推导。本周不再引入新的 RL 数学，只把已经讲清楚的量落成张量、纯函数、单元测试和可诊断训练循环。
+
+进入代码前，先把本周依赖的四条接口一次性固定：
+
+1. 当前模型对同一道题生成多条回答；
+2. 判题程序为每条完整回答给出一个序列级分数；
+3. 同题回答彼此比较，得到每条回答高于或低于组内正常水平的数值；
+4. 训练时分别保留采样快照和长期参考模型，用于判断数据是否过期、模型是否漂移。
+
+第二周已经把第三条得到的数值命名为 group advantage，把“新回答只更新一次”和
+“同一批回答有限复用”分别命名为 GR-REINFORCE 与 GRPO。下面出现这些名称时，
+只是在实现已有接口，不是在暗中增加新算法。
 
 ## 本周最终产出
 
-你将实现并验证：
+你将按数据流实现并验证：
 
 1. 自回归 token log-prob 对齐；
 2. prompt、completion、padding 的严格 mask；
 3. verifier 与 reward 分项；
-4. 同 prompt 分组与 group advantage；
-5. 非负的 sampled reference KL；
-6. 一次更新的 GR-REINFORCE；
-7. 可有限复用 rollout 的 GRPO；
+4. 同 prompt 回答的分组与相对分数；
+5. 当前模型偏离长期参考模型的逐 token 估计；
+6. 每批新回答只更新一次的训练版本；
+7. 同一批回答可以有限复用的训练版本；
 8. 从单元测试到十步 smoke test 的调试阶梯。
 
 先记住唯一总流程：
@@ -109,7 +120,10 @@ token_logp = predictive_logits.log_softmax(-1).gather(
 
 如果拿 `logits[:, 1:]` 对 `input_ids[:, 1:]`，就是让模型看到了目标 token 本身，语义错位。
 
-## 1.3 completion mask 也必须跟着目标右移
+## 1.3 哪些 token 位置才应该参与训练
+
+prompt 只是条件，padding 只是补齐形状；真正需要计算策略 loss 的，是回答部分的有效
+token。下面把“当前位置属于回答”记录为 **completion mask（回答掩码）**：
 
 设原始 `completion_mask[:, j]=1` 表示 `input_ids[:, j]` 属于 completion。`token_logp[:, j-1]` 才对应这个 token，所以：
 
@@ -135,7 +149,10 @@ targets:             [P1, C0, C1, EOS, PAD]
 
 `token_mask` 中第一个 1 对应目标 `C0`。如果它对应 `P1` 或 `C1`，shift 就错了。
 
-## 1.4 先固定 masked mean 的定义
+## 1.4 有效 token 的 loss 应该怎样平均
+
+有了回答掩码后，求平均时必须先排除无效位置。课程把这种“只对 mask 为 1 的位置
+求平均”的运算叫 **masked mean（掩码平均）**。
 
 ```python
 def masked_mean(x, mask, dim=None, eps=1e-8):
@@ -256,7 +273,10 @@ reference 可以在 rollout 时一次算好，因为它冻结；current log-prob
 
 # 第三章：先把 verifier 做成可信软件
 
-## 3.1 从 format-copy smoke task 开始
+## 3.1 先用一个只检查格式复制的最小任务
+
+这个任务不考数学推理，只要求模型把输入中的目标字符串放进规定格式。它用于快速检查
+整条训练流水线是否连通，属于 **smoke test（冒烟测试）**：
 
 复杂数学任务同时包含生成、解析、reward、分组和优化，出错后很难定位。先用简单任务：
 

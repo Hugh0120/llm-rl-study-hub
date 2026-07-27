@@ -17,14 +17,71 @@ const pages = [
     subsectionReplacementSource: path.join(projectDir, "content", "week1-ch2-step3.md"),
     subsectionReplaceFrom: "### 第三步：把“整条轨迹的 log 概率”拆成每一步",
     subsectionReplaceTo: "## 2.2",
-    sectionReplacementSource: path.join(projectDir, "content", "week1-ch3.md"),
-    sectionReplaceFrom: "# 第三章",
-    sectionReplaceTo: "# 第四章",
+    sectionReplacements: [
+      {
+        source: path.join(projectDir, "content", "week1-ch3.md"),
+        from: "# 第三章",
+        to: "# 第四章",
+      },
+      {
+        source: path.join(projectDir, "content", "week1-ch4.md"),
+        from: "# 第四章",
+        to: "# 第五章",
+      },
+    ],
+    textReplacements: [
+      {
+        from: "# 第二章：REINFORCE —— 让高回报轨迹更可能出现",
+        to: "# 第二章：最终得分怎样改变已生成 token 的概率",
+      },
+      {
+        from: "## 2.1 关键技巧：log-derivative trick",
+        to: "## 2.1 不对 token 求导，怎样对产生它的概率求导",
+      },
+      {
+        from: "### 第二步：由链式法则得到 log-derivative trick",
+        to: "### 第二步：把概率梯度改写成 log 概率梯度",
+      },
+      {
+        from: "这不是一个额外假设，只是 \\(\\nabla\\log p=(1/p)\\nabla p\\) 的移项。将它代回上一步：",
+        to: "这不是一个额外假设，只是 \\(\\nabla\\log p=(1/p)\\nabla p\\) 的移项。\n这条把概率梯度改写成 log 概率梯度的恒等变换，常叫 **log-derivative trick（对数导数技巧）**。将它代回上一步：",
+      },
+      {
+        from: "## 2.2 一条 rollout 如何变成可训练的 loss",
+        to: "这套“用采样回报加权已采样动作的 log-prob 梯度”的方法叫 **REINFORCE**。名称到这里才有用：它只是上面整条推导的简称，不是一条额外假设。\n\n## 2.2 一条 rollout 如何变成可训练的 loss",
+      },
+    ],
+    termOrderRules: [
+      {
+        term: "log-derivative trick",
+        introduction: "log-derivative trick（对数导数技巧）",
+      },
+      {
+        term: "REINFORCE",
+        introduction: "的方法叫 **REINFORCE**",
+      },
+      {
+        term: "baseline",
+        introduction: "叫 **baseline（基线）**",
+      },
+      {
+        term: "TD 误差",
+        introduction: "**temporal-difference error（TD 误差）**",
+      },
+      {
+        term: "GAE",
+        introduction: "简称 **GAE**",
+      },
+      {
+        term: "PPO",
+        introduction: "**PPO（Proximal Policy Optimization）**",
+      },
+    ],
     source: path.resolve(projectDir, "..", "第一周-CS285-策略优化与PPO-中文精读.md"),
     label: "WEEK 01 · SELF-CONTAINED EDITION",
-    title: "从策略梯度到 PPO",
+    title: "从回答得分到稳定更新",
     description: "从一条 LLM 回答如何生成和评分开始，逐步建立按结果更新 token 概率、估计相对表现并限制更新幅度的完整训练逻辑。",
-    meta: "面向算法工程师的第一周自包含教材：从策略梯度、Advantage、GAE 到 PPO。",
+    meta: "面向算法工程师的第一周自包含教材：建立后续课程反复使用的强化学习地基。",
     officialUrl: "https://rail.eecs.berkeley.edu/deeprlcourse/",
     officialLabel: "CS285 官网 ↗",
     previous: null,
@@ -35,22 +92,52 @@ const pages = [
     slug: "week2",
     source: path.join(projectDir, "content", "week2.md"),
     label: "WEEK 02 · SELF-CONTAINED EDITION",
-    title: "偏好、Verifier 与 GRPO",
-    description: "从偏好对推导 reward model 与 DPO，再把 RLHF、RLVR、verifier 和 GRPO 放进同一张方法地图。",
-    meta: "第二周自包含教材：RLHF、reward model、DPO、verifier、RLVR 与 GRPO。",
+    title: "反馈怎样变成训练信号",
+    description: "从示范、两两偏好和自动判题三种反馈出发，逐步判断何时模仿、何时学习评分器、何时让当前模型在线探索。",
+    meta: "第二周自包含教材：从反馈接口出发推导固定数据训练、学习评分器与在线探索。",
     officialUrl: "https://cs224r.stanford.edu/",
     officialLabel: "CS224R 官网 ↗",
     previous: "week1.html",
     next: "week3.html",
-    note: "先判断反馈接口属于示范、偏好还是自动验证，再选择算法；不要从 PPO、DPO、GRPO 的名称反推业务问题。",
+    note: "先判断手中反馈能回答“应该输出什么”“两者谁更好”还是“结果是否满足规则”，再进入对应训练方法。",
+    termOrderRules: [
+      {
+        term: "SFT",
+        introduction: "supervised fine-tuning（监督微调，SFT）",
+      },
+      {
+        term: "RLVR",
+        introduction: "reinforcement learning with verifiable rewards（RLVR）",
+      },
+      {
+        term: "reward model",
+        introduction: "reward model（奖励模型）",
+      },
+      {
+        term: "RLHF",
+        introduction: "reinforcement learning from human feedback（RLHF）",
+      },
+      {
+        term: "DPO",
+        introduction: "direct preference optimization（直接偏好优化，DPO）",
+      },
+      {
+        term: "GR-REINFORCE",
+        introduction: "group-relative REINFORCE（GR-REINFORCE）",
+      },
+      {
+        term: "GRPO",
+        introduction: "group relative policy optimization（GRPO）",
+      },
+    ],
   },
   {
     slug: "week3",
     source: path.join(projectDir, "content", "week3.md"),
     label: "WEEK 03 · IMPLEMENTATION EDITION",
-    title: "把 LLM RL 真正跑起来",
-    description: "从 tensor 契约、parser、mask 与 log-prob 开始，逐步实现 GR-REINFORCE、GRPO、KL 和可诊断训练。",
-    meta: "第三周工程教材：rollout、verifier、group advantage、GR-REINFORCE、GRPO 与训练诊断。",
+    title: "把训练规则实现成可靠代码",
+    description: "先固定输入、分组、评分和模型快照四条接口，再把已经推导过的训练规则落成张量、测试与可诊断循环。",
+    meta: "第三周工程教材：从数据接口和张量契约到训练实现与故障诊断。",
     officialUrl: "https://github.com/berkeleydeeprlcourse/homework_spring2026",
     officialLabel: "Starter Code ↗",
     previous: "week2.html",
@@ -61,14 +148,44 @@ const pages = [
     slug: "week4",
     source: path.join(projectDir, "content", "week4.md"),
     label: "WEEK 04 · EXPERIMENT EDITION",
-    title: "实验、诊断与 Agent RL",
-    description: "把一次成功训练升级为可信实验：消融、统计不确定性、reward hacking、成本分析与业务 Agent 环境迁移。",
-    meta: "第四周实验教材：math-hard、GRPO 消融、reward hacking、统计评估与 Agent RL。",
+    title: "证明训练有效并迁移到工具交互",
+    description: "把一次成功训练升级为可信实验：建立对照、估计不确定性、定位评分漏洞，再迁移到多步工具环境。",
+    meta: "第四周实验教材：可信比较、受控消融、评分漏洞审计与工具交互迁移。",
     officialUrl: "https://rdi.berkeley.edu/adv-llm-agents/sp25",
     officialLabel: "Agent RL 课程 ↗",
     previous: "week3.html",
     next: null,
     note: "每个结论都要同时给出任务指标、机制指标、失败样例和成本；训练 reward 只能作为证据之一。",
+    termOrderRules: [
+      {
+        term: "pass@1",
+        introduction: "**pass@1**",
+      },
+      {
+        term: "seed",
+        introduction: "random seed（随机种子）",
+      },
+      {
+        term: "reward shaping",
+        introduction: "reward shaping（奖励塑形）",
+      },
+      {
+        term: "reward hacking",
+        introduction: "reward hacking（奖励投机）",
+      },
+      {
+        term: "red teaming",
+        introduction: "red teaming（红队测试）",
+      },
+      {
+        term: "credit assignment",
+        introduction: "credit assignment（信用分配）",
+      },
+      {
+        term: "Agent",
+        introduction: "Agent（智能体）",
+      },
+    ],
   },
 ];
 
@@ -231,13 +348,16 @@ for (const page of pages) {
     }
     source = `${source.slice(0, boundary).trimEnd()}\n\n${replacement.trimStart()}`;
   }
-  if (page.sectionReplacementSource) {
-    const sectionReplacement = await fs.readFile(page.sectionReplacementSource, "utf8");
-    const sectionStart = source.indexOf(page.sectionReplaceFrom);
-    const sectionEnd = source.indexOf(page.sectionReplaceTo, sectionStart);
+  for (const sectionReplacementConfig of page.sectionReplacements ?? []) {
+    const sectionReplacement = await fs.readFile(
+      sectionReplacementConfig.source,
+      "utf8",
+    );
+    const sectionStart = source.indexOf(sectionReplacementConfig.from);
+    const sectionEnd = source.indexOf(sectionReplacementConfig.to, sectionStart);
     if (sectionStart < 0 || sectionEnd < 0) {
       throw new Error(
-        `Cannot find section boundaries ${page.sectionReplaceFrom}..${page.sectionReplaceTo}`,
+        `Cannot find section boundaries ${sectionReplacementConfig.from}..${sectionReplacementConfig.to}`,
       );
     }
     source = [
@@ -245,6 +365,26 @@ for (const page of pages) {
       sectionReplacement.trim(),
       source.slice(sectionEnd).trimStart(),
     ].join("\n\n");
+  }
+  for (const textReplacement of page.textReplacements ?? []) {
+    if (!source.includes(textReplacement.from)) {
+      throw new Error(
+        `Cannot find text replacement target ${textReplacement.from} in ${page.source}`,
+      );
+    }
+    source = source.replace(textReplacement.from, textReplacement.to);
+  }
+  for (const rule of page.termOrderRules ?? []) {
+    const firstTermIndex = source.indexOf(rule.term);
+    const introductionIndex = source.indexOf(rule.introduction);
+    if (introductionIndex < 0) {
+      throw new Error(`Missing introduction for ${rule.term} in ${page.slug}`);
+    }
+    if (firstTermIndex < introductionIndex) {
+      throw new Error(
+        `${rule.term} appears before its introduction in ${page.slug}`,
+      );
+    }
   }
   const body = renderMarkdown(source);
   const html = createHtml(page, body);

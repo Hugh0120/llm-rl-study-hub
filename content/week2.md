@@ -1,10 +1,14 @@
-# 第二周：reward 从哪里来——偏好学习、DPO、RLHF 与可验证强化学习
+# 第二周：没有唯一标准答案时，训练信号从哪里来
 
-> 第一周假设 reward 已经存在。本周不从算法名出发，而从反馈接口出发：人能给示范、能做两两选择，或者系统能自动判对错。接口不同，训练方法才不同。
+> 第一周假设外部系统已经能给回答打分。本周从更早的问题开始：人或程序究竟能提供什么反馈？反馈接口不同，能构造出的训练目标也不同。
+
+第一周已经集中讲完本课程反复使用的 RL 地基：模型怎样逐步生成、最终得分怎样
+改变采样概率、怎样构造相对更新权重，以及旧回答为什么只能受限复用。本周不再补一套
+新的 RL 前置知识，只改变一个问题：**外部反馈究竟从哪里来？**
 
 ## 本周最终产出
 
-完成后，你应能从一批真实数据判断应该使用 SFT、DPO、reward-model RLHF、GR-REINFORCE 还是 GRPO，并能解释选择背后的信息结构，而不是只会复述缩写。
+完成后，你应能先根据数据回答三个问题：有没有目标答案、能不能比较两个回答、能不能自动判定结果；然后再选择对应训练方法，而不是从算法缩写反推问题。
 
 贯穿全文的任务是数学推理：
 
@@ -21,13 +25,13 @@ prompt: 求解 23 × 17，并把最终答案写在 \boxed{} 中。
 
 我们会分别问：如果手中是标准答案、偏好对或自动判题器，能学到什么？
 
-## 0. 一张因果地图
+## 0. 先只看反馈，不看算法名
 
-| 手中反馈 | 能直接知道什么 | 首选起点 | 仍缺什么 |
+| 手中反馈 | 能直接知道什么 | 可以直接构造什么 | 仍缺什么 |
 |---|---|---|---|
-| 专家示范 \(y^\star\) | “应该输出什么” | SFT | 不知道模型自己的错误分布 |
-| 偏好对 \(y_w\succ y_l\) | “两者谁更好” | DPO 或 reward model | 没有绝对分数 |
-| 自动 verifier | “结果是否满足规则” | 在线 RL / RLVR | 信号常稀疏，需要探索 |
+| 专家示范 \(y^\star\) | “应该输出什么” | 逐 token 模仿目标 | 不知道模型自己的错误分布 |
+| 偏好对 \(y_w\succ y_l\) | “两者谁更好” | 两个回答的相对目标 | 没有绝对分数 |
+| 自动判题程序 | “结果是否满足规则” | 对模型新回答持续打分 | 信号常稀疏，需要探索 |
 
 本周依赖链：
 
@@ -54,7 +58,8 @@ prompt: 求解 23 × 17，并把最终答案写在 \boxed{} 中。
 \mathcal D_{\text{demo}}=\{(x_i,y_i^\star)\},
 \]
 
-最自然的目标是最大似然。把训练时最小化的 SFT loss 记作
+这种用专家 token 做监督目标的训练叫
+**supervised fine-tuning（监督微调，SFT）**。最自然的目标是最大似然。把训练时最小化的 loss 记作
 \(\mathcal L_{\text{SFT}}\)：\(\mathcal L\) 表示 loss，下标说明训练方法：
 
 \[
@@ -64,7 +69,7 @@ prompt: 求解 23 × 17，并把最终答案写在 \boxed{} 中。
 \sum_t\log\pi_\theta(y_t^\star\mid x,y^\star_{<t}).
 \]
 
-这就是 supervised fine-tuning，SFT。它告诉模型沿着专家轨迹每一步应该预测什么 token。
+它告诉模型沿着专家轨迹每一步应该预测什么 token。
 
 SFT 很强，因为监督密集、训练稳定。但它优化的是“复现数据中的答案”，不是“从当前模型会犯的错误中继续探索”。若专家数据覆盖不足，模型不会自动看到自己最新策略下的新失败模式。
 
@@ -90,7 +95,7 @@ SFT 很强，因为监督密集、训练稳定。但它优化的是“复现数�
 y_w\succ y_l,
 \]
 
-没有告诉我们 \(y_w\) 是 8.3 分，也没有说两个回答差多少。第二章会从这一事实推出偏好模型和 DPO。
+没有告诉我们 \(y_w\) 是 8.3 分，也没有说两个回答差多少。第二章会先从这一事实推出一个能学习相对质量的模型。
 
 ## 1.3 自动验证：程序可以判定结果
 
@@ -102,7 +107,8 @@ def verifier(prompt, completion):
     return float(parsed == ground_truth[prompt])
 ```
 
-这类反馈不需要人工逐条比较，可以对模型新生成的回答持续打分。由可验证奖励驱动的在线强化学习常称为 RLVR。
+这类反馈不需要人工逐条比较，可以对模型新生成的回答持续打分。由可验证奖励驱动的在线强化学习常称为
+**reinforcement learning with verifiable rewards（RLVR）**。
 
 它的优势是便宜、可扩展；局限也直接来自接口：
 
@@ -118,12 +124,12 @@ def verifier(prompt, completion):
 1. **反馈来自哪里？** 示范、偏好还是 verifier？
 2. **训练数据由谁产生？** 固定离线数据，还是当前策略在线采样？
 
-| 方法 | 反馈 | 数据分布 |
+| 训练起点 | 反馈 | 数据分布 |
 |---|---|---|
-| SFT | 示范 | 离线 |
-| DPO | 偏好对 | 通常离线 |
-| reward-model + PPO | 学到的标量 reward | 在线 rollout |
-| GR-REINFORCE / GRPO | verifier 或标量 reward | 在线分组 rollout |
+| 模仿专家回答 | 示范 | 固定离线数据 |
+| 直接学习回答间的相对关系 | 偏好对 | 通常是固定离线数据 |
+| 学一个评分器后在线优化 | 学到的标量分数 | 当前模型的新回答 |
+| 用程序评分后在线优化 | 自动判题结果 | 当前模型的新回答 |
 
 这是整周最重要的分类法。
 
@@ -159,9 +165,10 @@ sigmoid 的具体定义是：
 - \(y_w\) 高很多，概率趋近 1；
 - 顺序反过来，概率趋近 0。
 
-对已标注的胜者最大化似然，得到 reward model 的 loss。
-\(\mathcal L_{\text{RM}}\) 中 \(\mathcal L\) 表示 loss，下标 RM 表示
-reward model：
+对已标注的胜者最大化似然，就能训练这个标量打分模型。
+这个根据偏好对学习回答标量分数的模型叫 **reward model（奖励模型）**。
+它的 loss 记作 \(\mathcal L_{\text{RM}}\)：\(\mathcal L\) 表示 loss，
+下标 RM 表示 reward model：
 
 \[
 \mathcal L_{\text{RM}}(\phi)
@@ -205,7 +212,7 @@ r'_\phi(x,y)=r_\phi(x,y)+c(x),
 - 模型只在偏好数据覆盖区域内相对可信；
 - 策略可能找到 reward model 的漏洞，把预测分推高却没有真正变好。
 
-## 2.4 经典 RLHF 管线为什么需要四个角色
+## 2.4 把学到的评分器放回在线训练需要哪些角色
 
 得到 reward model 后，可以让当前策略在线生成：
 
@@ -235,7 +242,8 @@ r_\phi(x,y)
 \right].
 \]
 
-一套 PPO 式 RLHF 常包含：
+这种“从人类偏好训练 reward model，再在线优化策略”的路线叫
+**reinforcement learning from human feedback（RLHF）**。一套 PPO 式 RLHF 常包含：
 
 | 组件 | 是否更新 | 作用 |
 |---|---:|---|
@@ -258,7 +266,7 @@ r_\phi(x,y)
 
 这一管线表达力强，但在线采样、value 拟合和 PPO 调参都增加了复杂度。下一章问：如果手里已经有固定偏好对，能否直接训练 policy？
 
-# 第三章：DPO 是怎样从 KL 正则化目标推出的
+# 第三章：固定偏好对能否直接训练语言模型
 
 ## 3.1 先解一个“如果 reward 已知”的最优策略
 
@@ -268,6 +276,12 @@ r_\phi(x,y)
 
 1. 提高期望 reward；
 2. 不要离 reference policy 太远。
+
+公式前先固定三个量：
+
+- \(r(x,y)\)：回答 \(y\) 在 prompt \(x\) 下的 reward；
+- \(\pi_{\text{ref}}(y\mid x)\)：第一周已经介绍的长期参考模型，本节保持不变；
+- \(\beta>0\)：偏离参考模型的惩罚强度；越大越不允许新分布远离参考模型。
 
 \[
 \max_\pi
@@ -326,9 +340,11 @@ r(x,y_w)-r(x,y_l)
 \]
 
 现在用要训练的 \(\pi_\theta\) 代替未知最优策略，再代回
-Bradley–Terry loss。把得到的 loss 命名为
-\(\mathcal L_{\text{DPO}}\)：\(\mathcal L\) 表示 loss，下标 DPO
-说明它直接训练 policy：
+Bradley–Terry loss。到这里才给整套目标命名：
+**direct preference optimization（直接偏好优化，DPO）**。
+
+把它的 loss 记作 \(\mathcal L_{\text{DPO}}\)：\(\mathcal L\) 表示 loss，
+下标 DPO 说明它直接训练 policy：
 
 \[
 \mathcal L_{\text{DPO}}(\theta)
@@ -395,9 +411,9 @@ m_\theta(x,y_w)>m_\theta(x,y_l).
 | 实现复杂度 | 较低 | 较高 |
 | 分布漂移适应 | 弱 | 持续获得新样本 |
 
-DPO 是偏好优化，不是“没有 critic 的 GRPO”。二者的数据来源和目标都不同。
+DPO 使用固定偏好数据，不应仅根据“有没有 critic”与后面将出现的在线分组方法混为一谈；二者的数据来源和目标不同。
 
-# 第四章：自动 verifier 把问题变成在线探索
+# 第四章：有了自动判题以后，回答应该由谁产生
 
 ## 4.1 verifier 与 reward model 的根本区别
 
@@ -460,7 +476,7 @@ R_1,\ldots,R_G.
 
 我们希望不训练额外 critic，也能构造“相对表现”。最自然的参照就是同题样本的平均分。这就引出下一章的 group-relative 方法。
 
-# 第五章：从同题比较推出 GR-REINFORCE 与 GRPO
+# 第五章：同一道题采样多次后，怎样构造相对分数
 
 ## 5.1 组内标准化不是魔法 value
 
@@ -532,7 +548,7 @@ A_j=0.
 
 \(\varepsilon\) 只能防止除零，不能制造学习信号。前者说明题太难或探索不足，后者说明题太简单。
 
-## 5.2 先做最简单的在线更新：GR-REINFORCE
+## 5.2 先让每批新回答只更新一次
 
 对 completion \(y_i=(y_{i,1},\ldots,y_{i,T_i})\)，先把它的逐 token
 log-prob 取平均。这个平均值记作 \(\bar\ell_i(\theta)\)：横线表示平均，
@@ -546,7 +562,8 @@ log-prob 取平均。这个平均值记作 \(\bar\ell_i(\theta)\)：横线表示
 \log\pi_\theta(y_{i,t}\mid x_i,y_{i,<t}).
 \]
 
-把相应的 policy loss 命名为
+这套“同题采样一组回答、计算组内相对分数、每批只更新一次”的方法，本课程称为
+**group-relative REINFORCE（GR-REINFORCE）**。把相应的 policy loss 命名为
 \(\mathcal L_{\text{GR-REINFORCE}}\)：每个回答的平均 log-prob
 由组内相对分数 \(A_i\) 加权，然后取负号以便最小化：
 
@@ -620,7 +637,7 @@ D_{\mathrm{KL}}
 \operatorname{masked\_mean}(\widehat k_t).
 \]
 
-## 5.4 rollout 很贵：再从一步更新走到 GRPO
+## 5.4 同一批分组回答怎样有限复用
 
 GR-REINFORCE 更新一次就重采样，稳定但样本利用率低。若要复用同一批 rollout，保存采样时：
 
@@ -641,7 +658,8 @@ r_{i,t}(\theta)
 \right).
 \]
 
-用第一周已经推导的 clipped surrogate。把这一部分 policy loss
+把组内相对分数与第一周推导的概率比、clipping 结合，就得到
+**group relative policy optimization（GRPO）**。把这一部分 policy loss
 命名为 \(\mathcal L_{\text{GRPO,pg}}\)，其中 `pg` 表示 policy-gradient
 部分：
 
