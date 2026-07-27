@@ -10,21 +10,26 @@ const projectDir = path.resolve(import.meta.dirname, "..");
 const pages = [
   {
     slug: "week1",
+    prefixReplacementSource: path.join(projectDir, "content", "week1-opening-ch1.md"),
+    prefixReplaceTo: "# 第二章",
     replacementSource: path.join(projectDir, "content", "week1-ch3-onward.md"),
     replaceFrom: "\n# 第三章",
+    subsectionReplacementSource: path.join(projectDir, "content", "week1-ch2-step3.md"),
+    subsectionReplaceFrom: "### 第三步：把“整条轨迹的 log 概率”拆成每一步",
+    subsectionReplaceTo: "## 2.2",
     sectionReplacementSource: path.join(projectDir, "content", "week1-ch3.md"),
     sectionReplaceFrom: "# 第三章",
     sectionReplaceTo: "# 第四章",
     source: path.resolve(projectDir, "..", "第一周-CS285-策略优化与PPO-中文精读.md"),
     label: "WEEK 01 · SELF-CONTAINED EDITION",
     title: "从策略梯度到 PPO",
-    description: "从 LLM 的 MDP 建模开始，完整推导 REINFORCE、Advantage、GAE、importance sampling 与 PPO。",
+    description: "从一条 LLM 回答如何生成和评分开始，逐步建立按结果更新 token 概率、估计相对表现并限制更新幅度的完整训练逻辑。",
     meta: "面向算法工程师的第一周自包含教材：从策略梯度、Advantage、GAE 到 PPO。",
     officialUrl: "https://rail.eecs.berkeley.edu/deeprlcourse/",
     officialLabel: "CS285 官网 ↗",
     previous: null,
     next: "week2.html",
-    note: "如果你已读完前两章，请直接从第三章继续：正文先建立 baseline/value 的动机，再依次引出 TD、GAE 与 PPO；术语都在问题出现之后定义。",
+    note: "按章节顺序阅读：第一章从一次 LLM 生成建立状态、动作、回答概率和平均回报；第二章直接接着解决最终分数如何改变 token 概率。",
   },
   {
     slug: "week2",
@@ -195,6 +200,29 @@ await Promise.all([
 
 for (const page of pages) {
   let source = await fs.readFile(page.source, "utf8");
+  if (page.prefixReplacementSource) {
+    const prefixReplacement = await fs.readFile(page.prefixReplacementSource, "utf8");
+    const prefixEnd = source.indexOf(page.prefixReplaceTo);
+    if (prefixEnd < 0) {
+      throw new Error(`Cannot find prefix boundary ${page.prefixReplaceTo} in ${page.source}`);
+    }
+    source = `${prefixReplacement.trim()}\n\n${source.slice(prefixEnd).trimStart()}`;
+  }
+  if (page.subsectionReplacementSource) {
+    const subsectionReplacement = await fs.readFile(page.subsectionReplacementSource, "utf8");
+    const subsectionStart = source.indexOf(page.subsectionReplaceFrom);
+    const subsectionEnd = source.indexOf(page.subsectionReplaceTo, subsectionStart);
+    if (subsectionStart < 0 || subsectionEnd < 0) {
+      throw new Error(
+        `Cannot find subsection boundaries ${page.subsectionReplaceFrom}..${page.subsectionReplaceTo}`,
+      );
+    }
+    source = [
+      source.slice(0, subsectionStart).trimEnd(),
+      subsectionReplacement.trim(),
+      source.slice(subsectionEnd).trimStart(),
+    ].join("\n\n");
+  }
   if (page.replacementSource) {
     const replacement = await fs.readFile(page.replacementSource, "utf8");
     const boundary = source.indexOf(page.replaceFrom);

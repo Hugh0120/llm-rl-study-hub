@@ -8,6 +8,15 @@ const pages = [
   {
     file: "week1.html",
     required: [
+      "第一章：模型怎样自己生成答案并从得分中学习",
+      "从一条 LLM 回答如何生成和评分开始",
+      "先看一轮训练实际发生了什么",
+      "一次生成中，模型究竟做了哪些选择",
+      "一整条回答出现的概率从哪里来",
+      "训练到底要让哪个数字变大",
+      "为什么这不是普通的有标签监督学习",
+      "对当前 LLM 任务，不需要先背一个抽象六元组",
+      "这一步不再需要额外的初始状态分布或环境转移符号",
       "第三章：一份答案的分数，怎样变成每个 token 的训练信号",
       "为什么直接使用整份答案的回报太粗",
       "怎样估计“从这个前缀继续，通常能拿多少分”",
@@ -22,6 +31,11 @@ const pages = [
       "本章只需要带走五句话",
     ],
     forbidden: [
+      "第一章：先把 LLM 后训练写成一个 MDP",
+      "从 LLM 的 MDP 建模开始",
+      "\\mathcal M=(\\mathcal S,\\mathcal A, P, r, \\rho_0, \\gamma)",
+      "\\rho_0(s_1)",
+      "全篇符号约定：先知道字母是谁，再读公式",
       "假设 value 预测",
       "critic_backbone",
       "第三章：用一条 LLM 回答算出 Value、TD 与 GAE",
@@ -95,6 +109,15 @@ for (const page of pages) {
   }
   if (html.includes("\uFFFD")) {
     failures.push(`${page.file}: contains replacement character`);
+  }
+  if (page.file === "week1.html") {
+    const firstChapterStart = html.indexOf("<h1>第一章：");
+    const secondChapterStart = html.indexOf("<h1>第二章：", firstChapterStart);
+    const firstChapterHtml = html.slice(firstChapterStart, secondChapterStart);
+    const firstChapterSections = firstChapterHtml.match(/<h2>1\.[1-9]/g) ?? [];
+    if (firstChapterSections.length !== 5) {
+      failures.push(`week1.html: expected 5 first-chapter sections, got ${firstChapterSections.length}`);
+    }
   }
 }
 
