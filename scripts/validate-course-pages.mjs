@@ -71,6 +71,9 @@ for (const page of pages) {
   if (!html.includes("@media(prefers-color-scheme:dark)")) {
     failures.push(`${page.file}: missing automatic dark mode`);
   }
+  if (!html.includes("max-height:calc(100vh - 96px)") || !html.includes("overflow-y:auto")) {
+    failures.push(`${page.file}: table of contents is not independently scrollable`);
+  }
   if (html.includes("GUIDEBLOCKMATH") || html.includes("GUIDEINLINEMATH")) {
     failures.push(`${page.file}: contains unresolved math placeholder`);
   }
