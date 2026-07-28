@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="将 reward 曲线升级为 held-out、配对比较、不确定性、消融与漏洞审计。">
+  <meta name="theme-color" content="#f7f5ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d120f" media="(prefers-color-scheme: dark)">
+  <title>怎样证明模型真的变好了｜大模型强化学习教程</title>
+  <link rel="stylesheet" href="../vendor/katex.min.css">
+  <style>
+  :root {
+    color-scheme: light;
+    --paper: #f7f5ee;
+    --surface: #fffef9;
+    --soft: #ecefe5;
+    --ink: #161a17;
+    --muted: #5d675f;
+    --line: #cfd5ca;
+    --deep: #102c27;
+    --accent: #cfff45;
+    --link: #126450;
+    --code: #101612;
+    --code-ink: #eff8ef;
+    --shadow: rgba(22, 30, 24, .08);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 18px/1.82 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+  a { color: var(--link); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  .course-strip {
+    border-bottom: 1px solid var(--line);
+    background: var(--deep);
+    color: #f4f7f1;
+  }
+  .course-strip__inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 13px 28px;
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 750;
+    letter-spacing: .04em;
+  }
+  .course-strip a { color: var(--accent); text-decoration: none; }
+  .doc-shell {
+    width: min(100% - 40px, 980px);
+    margin: 0 auto;
+    padding: 30px 0 88px;
+  }
+  .chapter-nav {
+    min-height: 55px;
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 54px;
+    font-size: 14px;
+    font-weight: 760;
+  }
+  .chapter-nav__left, .chapter-nav__right { display: flex; gap: 20px; align-items: center; }
+  .chapter-nav a { text-decoration: none; }
+  .nav-index {
+    color: var(--ink) !important;
+    border-right: 1px solid var(--line);
+    padding-right: 20px;
+  }
+  .nav-next {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 12px;
+    color: var(--deep) !important;
+    background: var(--accent);
+  }
+  .chapter-kicker {
+    color: var(--link);
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  article > h1 {
+    max-width: 900px;
+    margin: 0 0 32px;
+    font-size: clamp(42px, 5.8vw, 64px);
+    line-height: 1.05;
+    letter-spacing: -.055em;
+  }
+  h1, h2, h3, h4 { font-weight: 830; }
+  h2 {
+    margin: 76px 0 24px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: clamp(29px, 4vw, 42px);
+    line-height: 1.17;
+    letter-spacing: -.035em;
+  }
+  h3 {
+    margin: 46px 0 16px;
+    font-size: clamp(23px, 3vw, 30px);
+    line-height: 1.28;
+    letter-spacing: -.025em;
+  }
+  h4 { margin-top: 32px; font-size: 20px; }
+  .heading-anchor {
+    margin-left: 10px;
+    opacity: 0;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: .62em;
+  }
+  h1:hover .heading-anchor, h2:hover .heading-anchor, h3:hover .heading-anchor, h4:hover .heading-anchor { opacity: .7; }
+  p { margin: 18px 0; }
+  strong { font-weight: 800; }
+  blockquote {
+    margin: 28px 0;
+    padding: 20px 24px;
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--accent);
+    background: var(--surface);
+    font-size: 20px;
+  }
+  blockquote p { margin: 0; }
+  ul, ol { padding-left: 1.45em; }
+  li { margin: 8px 0; padding-left: 5px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 26px 0 34px;
+    background: var(--surface);
+    font-size: 15.5px;
+    line-height: 1.55;
+  }
+  th, td { border: 1px solid var(--line); padding: 12px 14px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); font-weight: 800; }
+  code {
+    padding: .12em .36em;
+    border-radius: 4px;
+    background: var(--soft);
+    color: var(--ink);
+    font: .88em/1.5 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  }
+  pre {
+    overflow: auto;
+    margin: 26px 0 34px;
+    padding: 22px 24px;
+    border: 1px solid #27322b;
+    border-radius: 6px;
+    background: var(--code);
+    color: var(--code-ink);
+    font-size: 14.5px;
+    line-height: 1.7;
+  }
+  pre code { padding: 0; background: transparent; color: inherit; }
+  .math-block {
+    overflow-x: auto;
+    margin: 28px 0 34px;
+    padding: 24px 20px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    text-align: center;
+  }
+  .math-inline { white-space: nowrap; }
+  .chapter-toc {
+    margin: 38px 0 62px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .chapter-toc summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 17px 20px;
+    display: flex;
+    justify-content: space-between;
+    font-weight: 820;
+    background: var(--soft);
+  }
+  .chapter-toc summary::-webkit-details-marker { display: none; }
+  .chapter-toc summary span { color: var(--muted); font-size: 12px; letter-spacing: .06em; }
+  .toc-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 22px;
+    padding: 12px 20px 18px;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .toc-links a {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    text-decoration: none;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .chapter-end { margin-top: 80px; border-top: 1px solid var(--line); }
+  .page-progress {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--muted);
+    font-size: 13px;
+    margin: -28px 0 36px;
+  }
+  .page-progress__bar {
+    height: 5px;
+    flex: 1;
+    background: var(--line);
+  }
+  .page-progress__fill { height: 100%; background: var(--link); }
+  .course-footer {
+    border-top: 1px solid var(--line);
+    padding: 24px;
+    color: var(--muted);
+    text-align: center;
+    font-size: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --paper: #0d120f;
+      --surface: #131a15;
+      --soft: #19231c;
+      --ink: #e9efe9;
+      --muted: #a3aea5;
+      --line: #303b33;
+      --deep: #07100c;
+      --accent: #cfff45;
+      --link: #86d6b7;
+      --code: #080d0a;
+      --code-ink: #eaf4eb;
+      --shadow: rgba(0, 0, 0, .25);
+    }
+    .nav-next { color: #101510 !important; }
+  }
+  @media (max-width: 720px) {
+    body { font-size: 16.5px; line-height: 1.75; }
+    .doc-shell { width: min(100% - 28px, 980px); padding-top: 18px; }
+    .course-strip__inner { padding: 11px 16px; }
+    .chapter-nav { align-items: stretch; flex-direction: column; padding-bottom: 14px; margin-bottom: 38px; }
+    .chapter-nav__left, .chapter-nav__right { justify-content: space-between; }
+    article > h1 { font-size: clamp(35px, 9.7vw, 42px); line-height: 1.08; }
+    h2 { margin-top: 60px; }
+    .toc-links { grid-template-columns: 1fr; max-height: 360px; }
+    .math-block { padding: 18px 10px; }
+    table { display: block; overflow-x: auto; white-space: normal; }
+    .heading-anchor { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header class="course-strip">
+    <div class="course-strip__inner">
+      <span>LLM RL · 连续教程</span>
+      <a href="index.html">10 页完整问题链</a>
+    </div>
+  </header>
+  <main class="doc-shell">
+    <nav class="chapter-nav" aria-label="章节导航">
+      <div class="chapter-nav__left">
+        <a href="index.html" class="nav-index">课程目录</a>
+        <a href="07-implementation.html">← 07 工程落地</a>
+      </div>
+      <div class="chapter-nav__right">
+        <a class="nav-next" href="09-tool-agent.html">09 工具 Agent →</a>
+      </div>
+    </nav>
+    <div class="chapter-kicker">CHAPTER 08 · 可信评估 · 85 MIN</div>
+    <div class="page-progress">
+      <span>9 / 10</span>
+      <div class="page-progress__bar"><div class="page-progress__fill" style="width:90%"></div></div>
+      <span>90%</span>
+    </div>
+    <article>
+      <h1 id="第-8-章-reward-上升以后-怎样证明模型真的变好了">第 8 章：reward 上升以后，怎样证明模型真的变好了<a class="heading-anchor" href="#第-8-章-reward-上升以后-怎样证明模型真的变好了" aria-label="链接到本节">#</a></h1>
+    <details class="chapter-toc" open>
+      <summary>本章目录 <span>展开 / 收起</span></summary>
+      <nav class="toc-links" aria-label="本章目录">
+        <a href="#section-8-1">8.1 本章符号说明</a>
+<a href="#section-8-2">8.2 本章目标</a>
+<a href="#section-8-3">8.3 本章主线</a>
+<a href="#section-8-4">8.4 本章新增概念</a>
+<a href="#section-8-5">8.5 先写清楚你要证明的命题</a>
+<a href="#section-8-6">8.6 数据划分必须先于训练</a>
+<a href="#section-8-7">8.7 baseline 必须使用完全相同的评估协议</a>
+<a href="#section-8-8">8.8 把一个“准确率”拆成三个数</a>
+<a href="#section-8-9">8.9 pass@1 与 pass@k 回答不同问题</a>
+<a href="#section-8-10">8.10 用配对比较减少噪声</a>
+<a href="#section-8-11">8.11 不确定性不能省略</a>
+<a href="#section-8-12">8.12 ablation 要对应一个因果问题</a>
+<a href="#section-8-13">8.13 reward hacking 的系统检查</a>
+<a href="#section-8-14">8.14 通用能力与行为回退</a>
+<a href="#section-8-15">8.15 一页实验报告模板</a>
+<a href="#section-8-16">8.16 贯穿案例的可信结论</a>
+<a href="#section-8-17">8.17 本章自测</a>
+<a href="#section-8-18">8.18 本章之后还缺什么</a>
+<a href="#section-8-19">8.19 对应资料</a>
+      </nav>
+    </details>
+<h2 id="section-8-1">8.1 本章符号说明<a class="heading-anchor" href="#section-8-1" aria-label="链接到本节">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>English</th>
+<th>本章含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span></span></td>
+<td>sampled candidates</td>
+<td>每道题实际生成的候选数</td>
+</tr>
+<tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>c</mi></mrow><annotation encoding="application/x-tex">c</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.4306em;"></span><span class="mord mathnormal">c</span></span></span></span></span></td>
+<td>correct candidates</td>
+<td>其中通过 verifier 的候选数</td>
+</tr>
+<tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span></span></span></span></span></td>
+<td>attempt budget</td>
+<td>评估允许使用的候选数</td>
+</tr>
+<tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mover accent="true"><mi>p</mi><mo stretchy="true">^</mo></mover></mrow><annotation encoding="application/x-tex">\widehat p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.865em;vertical-align:-0.1944em;"></span><span class="mord katex-accent"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6706em;"><span style="top:-3em;"><span class="pstrut" style="height:3em;"></span><span class="mord mathnormal">p</span></span><span class="svg-align" style="width:calc(100% - 0.1667em);margin-left:0.1667em;top:-3.4306em;"><span class="pstrut" style="height:3em;"></span><span style="height:0.24em;"><svg xmlns="http://www.w3.org/2000/svg" width="100%" height="0.24em" viewBox="0 0 1062 239" preserveAspectRatio="none"><path d="M529 0h5l519 115c5 1 9 5 9 10 0 1-1 2-1 3l-4 22
+c-1 5-5 9-11 9h-2L532 67 19 159h-2c-5 0-9-4-11-9l-5-22c-1-6 2-12 8-13z"/></svg></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.1944em;"><span></span></span></span></span></span></span></span></span></span></td>
+<td>empirical success rate</td>
+<td>单次采样成功率的样本估计</td>
+</tr>
+<tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Δ</mi></mrow><annotation encoding="application/x-tex">\Delta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord">Δ</span></span></span></span></span></td>
+<td>paired improvement</td>
+<td>同一题上新旧模型指标之差</td>
+</tr>
+<tr>
+<td>CI</td>
+<td>confidence interval</td>
+<td>由有限评估样本带来的不确定范围</td>
+</tr>
+</tbody></table>
+<h2 id="section-8-2">8.2 本章目标<a class="heading-anchor" href="#section-8-2" aria-label="链接到本节">#</a></h2>
+<p>读完本章，你应该能够：</p>
+<ol>
+<li>区分训练 reward、验证 reward 与真实目标；</li>
+<li>为 RL 实验建立不可被训练污染的 baseline 与数据划分；</li>
+<li>将 parse rate、条件正确率、端到端正确率分开报告；</li>
+<li>正确解释 pass@1、pass@k 与采样预算；</li>
+<li>用配对评估、置信区间和多随机种子报告不确定性；</li>
+<li>设计能回答因果问题的 ablation；</li>
+<li>系统检查 reward hacking 与通用能力回退。</li>
+</ol>
+<h2 id="section-8-3">8.3 本章主线<a class="heading-anchor" href="#section-8-3" aria-label="链接到本节">#</a></h2>
+<p>第 7 章保证：</p>
+<blockquote>
+<p>token 对齐、mask、ratio 和 reward 管线至少通过了已知测试。</p>
+</blockquote>
+<p>但训练日志里的 <code>mean_reward</code> 上升，只能说明模型越来越擅长优化<strong>当前实现的 scorer</strong>。它不自动推出：</p>
+<ul>
+<li>未见题上也更正确；</li>
+<li>在相同采样预算下更好；</li>
+<li>推理过程更可靠；</li>
+<li>原有语言能力没有退化；</li>
+<li>没有利用 parser 或测试漏洞。</li>
+</ul>
+<p>因此评估必须从结论倒推证据：</p>
+<div class="math-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>声称模型更好</mtext><mo>→</mo><mtext>定义“好”</mtext><mo>→</mo><mtext>锁定评估协议</mtext><mo>→</mo><mtext>与正确 baseline 配对比较</mtext><mo>→</mo><mtext>报告不确定性与失败样本</mtext><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">\text{声称模型更好}
+\rightarrow
+\text{定义“好”}
+\rightarrow
+\text{锁定评估协议}
+\rightarrow
+\text{与正确 baseline 配对比较}
+\rightarrow
+\text{报告不确定性与失败样本}.</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord text"><span class="mord cjk_fallback">声称模型更好</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord text"><span class="mord cjk_fallback">定义</span><span class="mord">“</span><span class="mord cjk_fallback">好</span><span class="mord">”</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord text"><span class="mord cjk_fallback">锁定评估协议</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord text"><span class="mord cjk_fallback">与正确</span><span class="mord"> baseline </span><span class="mord cjk_fallback">配对比较</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord text"><span class="mord cjk_fallback">报告不确定性与失败样本</span></span><span class="mord">.</span></span></span></span></span></div>
+<h2 id="section-8-4">8.4 本章新增概念<a class="heading-anchor" href="#section-8-4" aria-label="链接到本节">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>名词</th>
+<th>中文直觉</th>
+<th>本章中解决的问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>end-to-end metric</td>
+<td>从原始输出到任务结果的总成功率</td>
+<td>不让解析失败从分母中消失</td>
+</tr>
+<tr>
+<td>conditional accuracy</td>
+<td>已成功解析样本中的正确率</td>
+<td>区分格式问题与推理问题</td>
+</tr>
+<tr>
+<td>pass@k</td>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span></span></span></span></span> 次尝试至少一次成功</td>
+<td>衡量采样搜索能力</td>
+</tr>
+<tr>
+<td>paired evaluation</td>
+<td>同一批题比较两个模型</td>
+<td>消除题目难度差异造成的噪声</td>
+</tr>
+<tr>
+<td>confidence interval</td>
+<td>有限测试集下的可能波动范围</td>
+<td>防止把小随机差异写成结论</td>
+</tr>
+<tr>
+<td>ablation</td>
+<td>只改变一个因素的对照</td>
+<td>判断改进究竟来自哪一部分</td>
+</tr>
+<tr>
+<td>reward hacking</td>
+<td>提高 scorer 而未完成真实目标</td>
+<td>检查优化器是否利用规则漏洞</td>
+</tr>
+</tbody></table>
+<h2 id="section-8-5">8.5 先写清楚你要证明的命题<a class="heading-anchor" href="#section-8-5" aria-label="链接到本节">#</a></h2>
+<p>一个可检验的实验命题应类似：</p>
+<blockquote>
+<p>在固定模型规模、SFT 初始化、训练题量和生成预算下，使用 group-relative RLVR 训练后，held-out 数学题的 greedy exact-match 从 X 提升到 Y，同时通用问答回退不超过 Z。</p>
+</blockquote>
+<p>它明确：</p>
+<ul>
+<li>变了什么：训练方法；</li>
+<li>固定什么：模型、数据、预算；</li>
+<li>在哪里测：held-out；</li>
+<li>用什么解码：greedy；</li>
+<li>主指标是什么：exact-match；</li>
+<li>允许什么代价：通用能力回退上限。</li>
+</ul>
+<p>“reward 从 0.3 涨到 0.7”不是完整命题，因为 scorer、采样温度、题目集合和回答长度都可能同时变化。</p>
+<h2 id="section-8-6">8.6 数据划分必须先于训练<a class="heading-anchor" href="#section-8-6" aria-label="链接到本节">#</a></h2>
+<p>至少分成：</p>
+<table>
+<thead>
+<tr>
+<th>集合</th>
+<th>用途</th>
+<th align="right">能否用于选择 checkpoint/超参数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>train</td>
+<td>rollout 与梯度更新</td>
+<td align="right">是</td>
+</tr>
+<tr>
+<td>validation</td>
+<td>早停、超参数、reward 设计迭代</td>
+<td align="right">是</td>
+</tr>
+<tr>
+<td>test</td>
+<td>最终一次性报告</td>
+<td align="right">否</td>
+</tr>
+</tbody></table>
+<p>对程序生成数学题，随机拆分仍可能泄漏模板。更严格的划分应按：</p>
+<ul>
+<li>题型模板；</li>
+<li>数值范围；</li>
+<li>推理深度；</li>
+<li>数据来源；</li>
+<li>时间；</li>
+<li>工具/API 版本。</li>
+</ul>
+<p>若 train 与 test 只更换数字，结论是“学会模板泛化”，不能夸大为一般推理能力。</p>
+<h2 id="section-8-7">8.7 baseline 必须使用完全相同的评估协议<a class="heading-anchor" href="#section-8-7" aria-label="链接到本节">#</a></h2>
+<p>至少比较：</p>
+<ol>
+<li>初始 SFT/reference checkpoint；</li>
+<li>训练步数为 0 的同代码路径；</li>
+<li>RL 后 checkpoint；</li>
+<li>必要时相同数据量的额外 SFT 或 rejection sampling baseline。</li>
+</ol>
+<p>所有模型必须共享：</p>
+<ul>
+<li>prompt 模板；</li>
+<li>tokenizer 与停止条件；</li>
+<li>max tokens；</li>
+<li>temperature、top-p；</li>
+<li>每题采样数；</li>
+<li>parser 与 verifier 版本；</li>
+<li>测试题顺序。</li>
+</ul>
+<p>否则提升可能只来自更大的采样预算或更宽松的 parser。</p>
+<h2 id="section-8-8">8.8 把一个“准确率”拆成三个数<a class="heading-anchor" href="#section-8-8" aria-label="链接到本节">#</a></h2>
+<p>设总测试题数为 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>M</mi></mrow><annotation encoding="application/x-tex">M</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.109em;">M</span></span></span></span></span>：</p>
+<div class="math-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>parse rate</mtext><mo>=</mo><mfrac><mrow><mi mathvariant="normal">#</mi><mtext>成功解析</mtext></mrow><mi>M</mi></mfrac><mo separator="true">,</mo></mrow><annotation encoding="application/x-tex">\text{parse rate}
+=
+\frac{\#\text{成功解析}}
+{M},</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8095em;vertical-align:-0.1944em;"></span><span class="mord text"><span class="mord">parse rate</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:2.0574em;vertical-align:-0.686em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3714em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.109em;">M</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">#</span><span class="mord text"><span class="mord cjk_fallback">成功解析</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mpunct">,</span></span></span></span></span></div>
+<div class="math-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>conditional accuracy</mtext><mo>=</mo><mfrac><mrow><mi mathvariant="normal">#</mi><mtext>解析且正确</mtext></mrow><mrow><mi mathvariant="normal">#</mi><mtext>成功解析</mtext></mrow></mfrac><mo separator="true">,</mo></mrow><annotation encoding="application/x-tex">\text{conditional accuracy}
+=
+\frac{\#\text{解析且正确}}
+{\#\text{成功解析}},</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord text"><span class="mord">conditional accuracy</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:2.2519em;vertical-align:-0.8804em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3714em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">#</span><span class="mord text"><span class="mord cjk_fallback">成功解析</span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">#</span><span class="mord text"><span class="mord cjk_fallback">解析且正确</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.8804em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mpunct">,</span></span></span></span></span></div>
+<div class="math-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>end-to-end accuracy</mtext><mo>=</mo><mfrac><mrow><mi mathvariant="normal">#</mi><mtext>解析且正确</mtext></mrow><mi>M</mi></mfrac><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">\text{end-to-end accuracy}
+=
+\frac{\#\text{解析且正确}}
+{M}.</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord text"><span class="mord">end-to-end accuracy</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:2.0574em;vertical-align:-0.686em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3714em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.109em;">M</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">#</span><span class="mord text"><span class="mord cjk_fallback">解析且正确</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mord">.</span></span></span></span></span></div>
+<p>例如：</p>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th align="right">parse rate</th>
+<th align="right">解析后正确率</th>
+<th align="right">端到端正确率</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>baseline</td>
+<td align="right">80%</td>
+<td align="right">75%</td>
+<td align="right">60%</td>
+</tr>
+<tr>
+<td>RL model</td>
+<td align="right">99%</td>
+<td align="right">64%</td>
+<td align="right">63%</td>
+</tr>
+</tbody></table>
+<p>端到端提升了 3 个点，但真正变化主要来自格式，而不是推理。只报告 63% 会掩盖这个事实；只在可解析样本上报告 64% 又会得到相反印象。</p>
+<h2 id="section-8-9">8.9 pass@1 与 pass@k 回答不同问题<a class="heading-anchor" href="#section-8-9" aria-label="链接到本节">#</a></h2>
+<h3 id="section-8-9-1">8.9.1 pass@1<a class="heading-anchor" href="#section-8-9-1" aria-label="链接到本节">#</a></h3>
+<p>一次生成成功的比例。它最接近真实单次调用质量，但必须注明解码策略：</p>
+<ul>
+<li>greedy pass@1；</li>
+<li>temperature sampling pass@1；</li>
+<li>固定 seed 或多 seed 平均。</li>
+</ul>
+<h3 id="section-8-9-2">8.9.2 pass@k<a class="heading-anchor" href="#section-8-9-2" aria-label="链接到本节">#</a></h3>
+<p>每题允许 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span></span></span></span></span> 次独立尝试，只要至少一个成功就算通过。若单次成功率为 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi></mrow><annotation encoding="application/x-tex">p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span></span>，理想独立条件下：</p>
+<div class="math-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi mathvariant="normal">pass@</mi><mo>⁡</mo><mi>k</mi><mo>=</mo><mn>1</mn><mo>−</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>p</mi><msup><mo stretchy="false">)</mo><mi>k</mi></msup><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">\operatorname{pass@}k
+=
+1-(1-p)^k.</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mop"><span class="mord mathrm">pass@</span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">1</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord">1</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1.1491em;vertical-align:-0.25em;"></span><span class="mord mathnormal">p</span><span class="mclose"><span class="mclose">)</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8991em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0315em;">k</span></span></span></span></span></span></span></span><span class="mord">.</span></span></span></span></span></div>
+<p>它衡量“模型加采样搜索”的系统能力，不等于单次回答更可靠。比较 pass@k 时必须固定 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span></span></span></span></span>、temperature 和总 token 预算。</p>
+<p>当每题已采样 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span></span> 个候选，其中 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>c</mi></mrow><annotation encoding="application/x-tex">c</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.4306em;"></span><span class="mord mathnormal">c</span></span></span></span></span> 个正确，无放回估计为：</p>
+<div class="math-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mover accent="true"><mrow><mi mathvariant="normal">pass@</mi><mo>⁡</mo><mi>k</mi></mrow><mo stretchy="true">^</mo></mover><mo>=</mo><mn>1</mn><mo>−</mo><mfrac><mrow><mo fence="true">(</mo><mfrac linethickness="0px"><mrow><mi>n</mi><mo>−</mo><mi>c</mi></mrow><mi>k</mi></mfrac><mo fence="true">)</mo></mrow><mrow><mo fence="true">(</mo><mfrac linethickness="0px"><mi>n</mi><mi>k</mi></mfrac><mo fence="true">)</mo></mrow></mfrac><mo separator="true">,</mo><mspace width="1em"/><mi>n</mi><mo>≥</mo><mi>k</mi><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">\widehat{\operatorname{pass@}k}
+=
+1-
+\frac{
+\binom{n-c}{k}
+}{
+\binom{n}{k}
+},
+\quad n\ge k.</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1.1889em;vertical-align:-0.1944em;"></span><span class="mord katex-accent"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.9944em;"><span style="top:-3em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mop"><span class="mord mathrm">pass@</span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span></span></span><span class="svg-align" style="top:-3.6944em;"><span class="pstrut" style="height:3em;"></span><span style="height:0.3em;"><svg xmlns="http://www.w3.org/2000/svg" width="100%" height="0.3em" viewBox="0 0 2364 300" preserveAspectRatio="none"><path d="M1181 0h2l1171 176c6 0 10 5 10 11l-2 23c-1 6-5 10
+-11 10h-1L1182 67 15 220h-1c-6 0-10-4-11-10l-2-23c-1-6 4-11 10-11z"/></svg></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.1944em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">1</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:2.6824em;vertical-align:-1.09em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.5923em;"><span style="top:-2.26em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"><span class="mopen delimcenter" style="top:0em;"><span class="delimsizing size1">(</span></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.7454em;"><span style="top:-2.355em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0315em;">k</span></span></span></span><span style="top:-3.144em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">n</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.345em;"><span></span></span></span></span></span><span class="mclose delimcenter" style="top:0em;"><span class="delimsizing size1">)</span></span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.74em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"><span class="mopen delimcenter" style="top:0em;"><span class="delimsizing size1">(</span></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.8523em;"><span style="top:-2.355em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0315em;">k</span></span></span></span><span style="top:-3.144em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">n</span><span class="mbin mtight">−</span><span class="mord mathnormal mtight">c</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.345em;"><span></span></span></span></span></span><span class="mclose delimcenter" style="top:0em;"><span class="delimsizing size1">)</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.09em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:1em;"></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≥</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span><span class="mord">.</span></span></span></span></span></div>
+<p>若 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>c</mi><mo>=</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">c=0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.4306em;"></span><span class="mord mathnormal">c</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span>，估计为 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn></mrow><annotation encoding="application/x-tex">0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span>；若 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>−</mo><mi>c</mi><mo>&lt;</mo><mi>k</mi></mrow><annotation encoding="application/x-tex">n-c&lt;k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.5782em;vertical-align:-0.0391em;"></span><span class="mord mathnormal">c</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">&lt;</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span></span></span></span></span>，至少会抽到一个正确答案，估计为 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn></mrow><annotation encoding="application/x-tex">1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">1</span></span></span></span></span>。</p>
+<h3 id="section-8-9-3">8.9.3 还要报告效率<a class="heading-anchor" href="#section-8-9-3" aria-label="链接到本节">#</a></h3>
+<p>同样的 pass@k，模型可能生成更长回答、消耗更多算力。建议同时报告：</p>
+<ul>
+<li>平均 completion tokens；</li>
+<li>成功样本的 tokens；</li>
+<li>每题 wall-clock；</li>
+<li>verifier/tool 调用次数；</li>
+<li>每个成功样本的平均计算成本。</li>
+</ul>
+<h2 id="section-8-10">8.10 用配对比较减少噪声<a class="heading-anchor" href="#section-8-10" aria-label="链接到本节">#</a></h2>
+<p>不要让 baseline 测一批题、RL model 测另一批题。对同一个测试题 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>j</mi></mrow><annotation encoding="application/x-tex">j</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.854em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.0572em;">j</span></span></span></span></span>，记录：</p>
+<div class="math-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi mathvariant="normal">Δ</mi><mi>j</mi></msub><mo>=</mo><msub><mi>m</mi><mrow><mtext>new</mtext><mo separator="true">,</mo><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mrow><mtext>base</mtext><mo separator="true">,</mo><mi>j</mi></mrow></msub><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">\Delta_j
+=
+m_{\text{new},j}
+-
+m_{\text{base},j}.</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord">Δ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal">m</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">new</span></span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.7167em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal">m</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">base</span></span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mord">.</span></span></span></span></span></div>
+<p>总体提升：</p>
+<div class="math-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mover accent="true"><mi mathvariant="normal">Δ</mi><mo>ˉ</mo></mover><mo>=</mo><mfrac><mn>1</mn><mi>M</mi></mfrac><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mi>M</mi></munderover><msub><mi mathvariant="normal">Δ</mi><mi>j</mi></msub><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">\bar\Delta
+=
+\frac1M
+\sum_{j=1}^{M}\Delta_j.</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8201em;"></span><span class="mord katex-accent"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8201em;"><span style="top:-3em;"><span class="pstrut" style="height:3em;"></span><span class="mord">Δ</span></span><span style="top:-3.2523em;"><span class="pstrut" style="height:3em;"></span><span class="accent-body" style="left:-0.25em;"><span class="mord">ˉ</span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:3.2421em;vertical-align:-1.4138em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3214em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.109em;">M</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mop op-limits"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.8283em;"><span style="top:-1.8723em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span><span class="mrel mtight">=</span><span class="mord mtight">1</span></span></span></span><span style="top:-3.05em;"><span class="pstrut" style="height:3.05em;"></span><span><span class="mop op-symbol large-op">∑</span></span></span><span style="top:-4.3em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.109em;">M</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.4138em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord">Δ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mord">.</span></span></span></span></span></div>
+<p>配对设计自动抵消“某批题更难”的波动。对采样评估，还应：</p>
+<ul>
+<li>对同一 prompt 使用预先固定的 seed 集；</li>
+<li>或为每题采足够候选后计算统一的 pass@k；</li>
+<li>对不同训练 seed 分别训练和报告。</li>
+</ul>
+<h2 id="section-8-11">8.11 不确定性不能省略<a class="heading-anchor" href="#section-8-11" aria-label="链接到本节">#</a></h2>
+<p>测试集只有有限样本。若 200 道题从 60% 升到 62%，可能只是几道题的随机变化。</p>
+<p>可使用：</p>
+<ul>
+<li>二项比例 Wilson interval；</li>
+<li>按题 bootstrap；</li>
+<li>配对 bootstrap 估计 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mover accent="true"><mi mathvariant="normal">Δ</mi><mo>ˉ</mo></mover></mrow><annotation encoding="application/x-tex">\bar\Delta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8201em;"></span><span class="mord katex-accent"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8201em;"><span style="top:-3em;"><span class="pstrut" style="height:3em;"></span><span class="mord">Δ</span></span><span style="top:-3.2523em;"><span class="pstrut" style="height:3em;"></span><span class="accent-body" style="left:-0.25em;"><span class="mord">ˉ</span></span></span></span></span></span></span></span></span></span></span> 的 CI；</li>
+<li>多训练 seed 的均值与标准差。</li>
+</ul>
+<p>推荐至少报告：</p>
+<pre><code class="language-text">end-to-end accuracy: 63.2%
+paired improvement: +3.1 percentage points
+95% bootstrap CI: [+1.0, +5.2]
+training seeds: 3
+</code></pre>
+<p>CI 若跨过 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn></mrow><annotation encoding="application/x-tex">0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span>，正确结论是“当前证据不足以确认提升”，不是“几乎有效”。</p>
+<h2 id="section-8-12">8.12 ablation 要对应一个因果问题<a class="heading-anchor" href="#section-8-12" aria-label="链接到本节">#</a></h2>
+<p>对 GRPO/RLVR，可以设计：</p>
+<table>
+<thead>
+<tr>
+<th>对照</th>
+<th>只改变什么</th>
+<th>回答的问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>G</mi><mo>=</mo><mn>4</mn></mrow><annotation encoding="application/x-tex">G=4</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal">G</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">4</span></span></span></span></span> vs <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>G</mi><mo>=</mo><mn>16</mn></mrow><annotation encoding="application/x-tex">G=16</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal">G</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">16</span></span></span></span></span></td>
+<td>group size</td>
+<td>改进是否来自更稳的组 baseline/更多探索</td>
+</tr>
+<tr>
+<td>无标准化 vs 标准化</td>
+<td>advantage scale</td>
+<td>组内缩放是否必要</td>
+</tr>
+<tr>
+<td>单次更新 vs 多 epoch</td>
+<td>rollout reuse</td>
+<td>提升是否来自样本复用</td>
+</tr>
+<tr>
+<td>无 clipping vs clipping</td>
+<td>trust region surrogate</td>
+<td>稳定性是否来自裁剪</td>
+</tr>
+<tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>β</mi><mo>=</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">\beta=0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.0528em;">β</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span> vs <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>β</mi><mo>&gt;</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">\beta&gt;0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.0528em;">β</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">&gt;</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span></td>
+<td>reference KL</td>
+<td>通用能力与格式稳定是否靠 KL 保持</td>
+</tr>
+<tr>
+<td>task reward only vs + format reward</td>
+<td>shaping</td>
+<td>提升究竟来自正确率还是格式</td>
+</tr>
+<tr>
+<td>random reward</td>
+<td>反馈语义</td>
+<td>管线是否会“无论什么 reward 都上涨”</td>
+</tr>
+</tbody></table>
+<p>每次只改一个关键因素，并尽量匹配：</p>
+<ul>
+<li>optimizer steps；</li>
+<li>rollout tokens；</li>
+<li>总训练 FLOPs；</li>
+<li>验证频率。</li>
+</ul>
+<p>否则不能把结论归因给算法结构。</p>
+<h2 id="section-8-13">8.13 reward hacking 的系统检查<a class="heading-anchor" href="#section-8-13" aria-label="链接到本节">#</a></h2>
+<h3 id="section-8-13-1">8.13.1 parser hacking<a class="heading-anchor" href="#section-8-13-1" aria-label="链接到本节">#</a></h3>
+<ul>
+<li>输出多个 <code>\boxed{}</code>，让 parser 选中有利答案；</li>
+<li>在答案附近插入特殊字符；</li>
+<li>利用正则的贪婪/非贪婪差异；</li>
+<li>输出 NaN、无穷或数值溢出。</li>
+</ul>
+<h3 id="section-8-13-2">8.13.2 verifier hacking<a class="heading-anchor" href="#section-8-13-2" aria-label="链接到本节">#</a></h3>
+<ul>
+<li>只通过公开测试；</li>
+<li>利用浮点容差；</li>
+<li>访问不该读取的文件或网络；</li>
+<li>修改环境状态而非完成任务。</li>
+</ul>
+<h3 id="section-8-13-3">8.13.3 reward composition hacking<a class="heading-anchor" href="#section-8-13-3" aria-label="链接到本节">#</a></h3>
+<ul>
+<li>用极长文本积累格式分；</li>
+<li>通过拒答规避负分；</li>
+<li>重复关键词获取 RM 偏好；</li>
+<li>牺牲主任务换取容易优化的辅助项。</li>
+</ul>
+<h3 id="section-8-13-4">8.13.4 检查方法<a class="heading-anchor" href="#section-8-13-4" aria-label="链接到本节">#</a></h3>
+<ol>
+<li>保存 reward 最高与提升最快的样本；</li>
+<li>用独立 parser/verifier 复核；</li>
+<li>对隐藏测试、扰动格式、同义 prompt 重测；</li>
+<li>人工盲评随机样本与高 reward 样本；</li>
+<li>将 reward 各分量与真实主指标分别画图；</li>
+<li>对失败样本建立类型表，而不是只看均值。</li>
+</ol>
+<h2 id="section-8-14">8.14 通用能力与行为回退<a class="heading-anchor" href="#section-8-14" aria-label="链接到本节">#</a></h2>
+<p>reference KL 小不等于所有能力都被保留。训练特定数学任务后，还应根据用途检查：</p>
+<ul>
+<li>通用知识与指令遵循；</li>
+<li>安全拒答；</li>
+<li>多语言能力；</li>
+<li>输出多样性与重复；</li>
+<li>校准与不确定性表达；</li>
+<li>长上下文；</li>
+<li>与工具无关的正常聊天。</li>
+</ul>
+<p>建立 regression suite，并在训练前锁定最低允许阈值。若主任务 +3%，通用能力 -10%，这不是无条件的成功。</p>
+<h2 id="section-8-15">8.15 一页实验报告模板<a class="heading-anchor" href="#section-8-15" aria-label="链接到本节">#</a></h2>
+<pre><code class="language-text">目标命题
+  在相同 1× 采样预算下提高 held-out 算术准确率。
+
+固定条件
+  base checkpoint / prompt template / decoding / parser / verifier / token budget
+
+训练变化
+  GRPO, G=8, epsilon=0.2, beta=0.01, 2 update epochs
+
+主结果
+  greedy end-to-end accuracy
+  baseline: 60.1%
+  trained:  64.0%
+  paired Δ: +3.9 pp, 95% CI [+2.0, +5.8]
+
+拆分指标
+  parse rate / conditional accuracy / answer length / KL / zero-variance groups
+
+消融
+  no KL / no clipping / G=2 / random reward
+
+回退
+  general instruction suite: -0.4 pp
+
+失败分析
+  arithmetic slip 42%, parse failure 18%, premature stop 15%, other 25%
+
+结论边界
+  只支持同模板外数值泛化；尚未证明跨题型推理提升。
+</code></pre>
+<h2 id="section-8-16">8.16 贯穿案例的可信结论<a class="heading-anchor" href="#section-8-16" aria-label="链接到本节">#</a></h2>
+<p>对 <code>23×17</code> 类任务，下面两种说法区别很大：</p>
+<p>不充分：</p>
+<blockquote>
+<p>训练 reward 从 0.4 升到 0.9，所以模型学会了数学推理。</p>
+</blockquote>
+<p>更可信：</p>
+<blockquote>
+<p>在按运算结构隔离的 2,000 道 held-out 题上，固定 greedy 解码与 128-token 预算后，端到端准确率从 61.3% 提升到 67.8%；提升同时来自 parse rate +1.2 pp 和解析后正确率 +5.8 pp。配对 bootstrap 95% CI 为 [+4.7,+8.3] pp，三个训练 seed 均为正；独立 verifier 复核未发现明显格式漏洞。该结果只证明当前题型分布上的单次回答改进。</p>
+</blockquote>
+<p>科学性主要来自限定了结论，而不是用了更复杂的指标。</p>
+<h2 id="section-8-17">8.17 本章自测<a class="heading-anchor" href="#section-8-17" aria-label="链接到本节">#</a></h2>
+<ol>
+<li>为什么训练 reward 上升不能直接证明 held-out 正确率上升？</li>
+<li>parse rate、conditional accuracy 与 end-to-end accuracy 分别揭示什么？</li>
+<li>pass@k 提高可能来自哪些与单次模型质量无关的因素？</li>
+<li>为什么相同题目的配对比较比两批独立题更稳？</li>
+<li>设计一个只检验 reference KL 作用的 ablation。</li>
+<li>reward 最高的样本为什么应该优先人工检查？</li>
+</ol>
+<h2 id="section-8-18">8.18 本章之后还缺什么<a class="heading-anchor" href="#section-8-18" aria-label="链接到本节">#</a></h2>
+<p>目前的贯穿案例是单轮问答：</p>
+<pre><code class="language-text">prompt → 连续生成 token → 最终 verifier
+</code></pre>
+<p>工具 Agent 会多次与外部环境交互：</p>
+<pre><code class="language-text">观察 → 选择工具 → 环境变化 → 新观察 → 再决策
+</code></pre>
+<p>第 9 章不会重新发明一套强化学习，而是逐项替换第 1 章的状态、动作、转移和 reward，并说明工具错误、安全约束与长程信用分配怎样进入现有框架。</p>
+<h2 id="section-8-19">8.19 对应资料<a class="heading-anchor" href="#section-8-19" aria-label="链接到本节">#</a></h2>
+<ul>
+<li><a href="https://arxiv.org/abs/2107.03374" target="_blank" rel="noreferrer">Evaluating Large Language Models Trained on Code</a></li>
+<li><a href="https://arxiv.org/abs/2211.09110" target="_blank" rel="noreferrer">HELM: Holistic Evaluation of Language Models</a></li>
+<li><a href="https://arxiv.org/abs/2403.13787" target="_blank" rel="noreferrer">RewardBench</a></li>
+<li><a href="http://incompleteideas.net/book/RLbook2020.pdf" target="_blank" rel="noreferrer">Sutton &amp; Barto, Section 2.4: Incremental Implementation</a></li>
+</ul>
+
+    </article>
+    <div class="chapter-end"><nav class="chapter-nav" aria-label="章节导航">
+      <div class="chapter-nav__left">
+        <a href="index.html" class="nav-index">课程目录</a>
+        <a href="07-implementation.html">← 07 工程落地</a>
+      </div>
+      <div class="chapter-nav__right">
+        <a class="nav-next" href="09-tool-agent.html">09 工具 Agent →</a>
+      </div>
+    </nav></div>
+  </main>
+  <footer class="course-footer">从反馈接口到可靠训练系统 · 旧版四周讲义仍保留在站点归档中</footer>
+</body>
+</html>

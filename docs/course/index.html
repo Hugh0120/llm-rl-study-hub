@@ -93,8 +93,8 @@
       <h1>从一个回答得分，<br>走到<em>可靠训练系统</em>。</h1>
       <p class="lead">面向已经熟悉 Transformer 与大模型训练、但没有系统强化学习基础的算法工程师。全课沿同一个数学问答案例前进；每章先交代上一章留下的问题，再引入唯一需要的新概念。</p>
       <div class="actions">
-        <a class="button" href="course/00-roadmap.html">先看完整路线 ↗</a>
-        <a class="button alt" href="course/01-llm-decision-process.html">直接开始第 1 章 →</a>
+        <a class="button" href="00-roadmap.html">先看完整路线 ↗</a>
+        <a class="button alt" href="01-llm-decision-process.html">直接开始第 1 章 →</a>
         <a class="button alt" href="https://rail.eecs.berkeley.edu/deeprlcourse/" target="_blank" rel="noreferrer">CS285 官方课程 ↗</a>
       </div>
     </div>
@@ -108,70 +108,70 @@
       <span>生成即决策</span><span>分数到梯度</span><span>相对表现</span><span>受控复用</span><span>反馈来源</span><span>同题多采样</span><span>可靠实现</span><span>可信评估</span><span>工具 Agent</span>
     </div>
     <section class="chapter-grid">
-      <a class="chapter-card" href="course/00-roadmap.html">
+      <a class="chapter-card" href="00-roadmap.html">
           <div class="chapter-card__meta"><span>CHAPTER 00</span><span>35 MIN</span></div>
           <h3>从回答得分到可靠训练系统</h3>
           <p>先看全局问题链、符号表、章节依赖和贯穿案例，再开始推导。</p>
           <div class="topics">全局路线 · 符号表 · 学习方法</div>
           <div class="enter"><span>先看课程路线</span><span>↗</span></div>
         </a>
-<a class="chapter-card" href="course/01-llm-decision-process.html">
+<a class="chapter-card" href="01-llm-decision-process.html">
           <div class="chapter-card__meta"><span>CHAPTER 01</span><span>70 MIN</span></div>
           <h3>语言模型到底在做什么选择</h3>
           <p>从一次自回归回答建立状态、动作、轨迹概率、reward 与训练目标。</p>
           <div class="topics">MDP 映射 · 轨迹概率 · 期望回报</div>
           <div class="enter"><span>进入本章</span><span>↗</span></div>
         </a>
-<a class="chapter-card" href="course/02-score-to-gradient.html">
+<a class="chapter-card" href="02-score-to-gradient.html">
           <div class="chapter-card__meta"><span>CHAPTER 02</span><span>90 MIN</span></div>
           <h3>最终分数怎样改变 token 概率</h3>
           <p>逐行推导 log-derivative、policy gradient 与 REINFORCE，不对离散 token 求导。</p>
           <div class="topics">Policy Gradient · REINFORCE · Reward-to-go</div>
           <div class="enter"><span>进入本章</span><span>↗</span></div>
         </a>
-<a class="chapter-card" href="course/03-value-td-gae.html">
+<a class="chapter-card" href="03-value-td-gae.html">
           <div class="chapter-card__meta"><span>CHAPTER 03</span><span>120 MIN</span></div>
           <h3>怎样判断每一步做得好不好</h3>
           <p>由正常水平依次推出 value、advantage、TD、GAE，最后才命名 Actor–Critic。</p>
           <div class="topics">Value · TD · GAE</div>
           <div class="enter"><span>进入本章</span><span>↗</span></div>
         </a>
-<a class="chapter-card" href="course/04-ppo-and-kl.html">
+<a class="chapter-card" href="04-ppo-and-kl.html">
           <div class="chapter-card__meta"><span>CHAPTER 04</span><span>110 MIN</span></div>
           <h3>rollout 很贵，怎样安全地多用几次</h3>
           <p>从旧数据问题推出 importance ratio、PPO clipping，并分清 old 与 reference。</p>
           <div class="topics">Importance Ratio · PPO · KL</div>
           <div class="enter"><span>进入本章</span><span>↗</span></div>
         </a>
-<a class="chapter-card" href="course/05-feedback-and-preference.html">
+<a class="chapter-card" href="05-feedback-and-preference.html">
           <div class="chapter-card__meta"><span>CHAPTER 05</span><span>105 MIN</span></div>
           <h3>模型的分数从哪里来</h3>
           <p>先区分示范、偏好与可验证结果，再引出 SFT、RLHF、DPO 与 RLVR。</p>
           <div class="topics">SFT · RLHF / DPO · RLVR</div>
           <div class="enter"><span>进入本章</span><span>↗</span></div>
         </a>
-<a class="chapter-card" href="course/06-group-relative-grpo.html">
+<a class="chapter-card" href="06-group-relative-grpo.html">
           <div class="chapter-card__meta"><span>CHAPTER 06</span><span>100 MIN</span></div>
           <h3>能不能不用 critic</h3>
           <p>由同题组均值构造相对 advantage，再按是否复用数据得到 GR-REINFORCE 与 GRPO。</p>
           <div class="topics">Group Baseline · GR-REINFORCE · GRPO</div>
           <div class="enter"><span>进入本章</span><span>↗</span></div>
         </a>
-<a class="chapter-card" href="course/07-implementation.html">
+<a class="chapter-card" href="07-implementation.html">
           <div class="chapter-card__meta"><span>CHAPTER 07</span><span>120 MIN</span></div>
           <h3>把公式变成不会错位的训练代码</h3>
           <p>固定 tensor contract、mask、log-prob 生命周期、verifier 分层与 smoke tests。</p>
           <div class="topics">Tensor Contract · Lifecycle · Debugging</div>
           <div class="enter"><span>进入本章</span><span>↗</span></div>
         </a>
-<a class="chapter-card" href="course/08-evaluation.html">
+<a class="chapter-card" href="08-evaluation.html">
           <div class="chapter-card__meta"><span>CHAPTER 08</span><span>85 MIN</span></div>
           <h3>怎样证明模型真的变好了</h3>
           <p>将 reward 曲线升级为 held-out、配对比较、不确定性、消融与漏洞审计。</p>
           <div class="topics">pass@k · Ablation · Reward Hacking</div>
           <div class="enter"><span>进入本章</span><span>↗</span></div>
         </a>
-<a class="chapter-card" href="course/09-tool-agent.html">
+<a class="chapter-card" href="09-tool-agent.html">
           <div class="chapter-card__meta"><span>CHAPTER 09</span><span>95 MIN</span></div>
           <h3>从单轮回答走向外部环境</h3>
           <p>逐项替换状态、动作、转移与 reward，加入真实状态核验、成本和安全边界。</p>
@@ -189,10 +189,10 @@
       <h3>旧版四周讲义归档</h3>
       <p>旧页面不再作为主课程入口，但仍保留，便于对照与查找原先的周计划。</p>
       <div class="archive-links">
-        <a href="week1.html">Week 1</a>
-        <a href="week2.html">Week 2</a>
-        <a href="week3.html">Week 3</a>
-        <a href="week4.html">Week 4</a>
+        <a href="../week1.html">Week 1</a>
+        <a href="../week2.html">Week 2</a>
+        <a href="../week3.html">Week 3</a>
+        <a href="../week4.html">Week 4</a>
       </div>
     </section>
   </main>

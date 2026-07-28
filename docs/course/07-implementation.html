@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="固定 tensor contract、mask、log-prob 生命周期、verifier 分层与 smoke tests。">
+  <meta name="theme-color" content="#f7f5ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d120f" media="(prefers-color-scheme: dark)">
+  <title>把公式变成不会错位的训练代码｜大模型强化学习教程</title>
+  <link rel="stylesheet" href="../vendor/katex.min.css">
+  <style>
+  :root {
+    color-scheme: light;
+    --paper: #f7f5ee;
+    --surface: #fffef9;
+    --soft: #ecefe5;
+    --ink: #161a17;
+    --muted: #5d675f;
+    --line: #cfd5ca;
+    --deep: #102c27;
+    --accent: #cfff45;
+    --link: #126450;
+    --code: #101612;
+    --code-ink: #eff8ef;
+    --shadow: rgba(22, 30, 24, .08);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 18px/1.82 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+  a { color: var(--link); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  .course-strip {
+    border-bottom: 1px solid var(--line);
+    background: var(--deep);
+    color: #f4f7f1;
+  }
+  .course-strip__inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 13px 28px;
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 750;
+    letter-spacing: .04em;
+  }
+  .course-strip a { color: var(--accent); text-decoration: none; }
+  .doc-shell {
+    width: min(100% - 40px, 980px);
+    margin: 0 auto;
+    padding: 30px 0 88px;
+  }
+  .chapter-nav {
+    min-height: 55px;
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 54px;
+    font-size: 14px;
+    font-weight: 760;
+  }
+  .chapter-nav__left, .chapter-nav__right { display: flex; gap: 20px; align-items: center; }
+  .chapter-nav a { text-decoration: none; }
+  .nav-index {
+    color: var(--ink) !important;
+    border-right: 1px solid var(--line);
+    padding-right: 20px;
+  }
+  .nav-next {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 12px;
+    color: var(--deep) !important;
+    background: var(--accent);
+  }
+  .chapter-kicker {
+    color: var(--link);
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  article > h1 {
+    max-width: 900px;
+    margin: 0 0 32px;
+    font-size: clamp(42px, 5.8vw, 64px);
+    line-height: 1.05;
+    letter-spacing: -.055em;
+  }
+  h1, h2, h3, h4 { font-weight: 830; }
+  h2 {
+    margin: 76px 0 24px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: clamp(29px, 4vw, 42px);
+    line-height: 1.17;
+    letter-spacing: -.035em;
+  }
+  h3 {
+    margin: 46px 0 16px;
+    font-size: clamp(23px, 3vw, 30px);
+    line-height: 1.28;
+    letter-spacing: -.025em;
+  }
+  h4 { margin-top: 32px; font-size: 20px; }
+  .heading-anchor {
+    margin-left: 10px;
+    opacity: 0;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: .62em;
+  }
+  h1:hover .heading-anchor, h2:hover .heading-anchor, h3:hover .heading-anchor, h4:hover .heading-anchor { opacity: .7; }
+  p { margin: 18px 0; }
+  strong { font-weight: 800; }
+  blockquote {
+    margin: 28px 0;
+    padding: 20px 24px;
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--accent);
+    background: var(--surface);
+    font-size: 20px;
+  }
+  blockquote p { margin: 0; }
+  ul, ol { padding-left: 1.45em; }
+  li { margin: 8px 0; padding-left: 5px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 26px 0 34px;
+    background: var(--surface);
+    font-size: 15.5px;
+    line-height: 1.55;
+  }
+  th, td { border: 1px solid var(--line); padding: 12px 14px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); font-weight: 800; }
+  code {
+    padding: .12em .36em;
+    border-radius: 4px;
+    background: var(--soft);
+    color: var(--ink);
+    font: .88em/1.5 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  }
+  pre {
+    overflow: auto;
+    margin: 26px 0 34px;
+    padding: 22px 24px;
+    border: 1px solid #27322b;
+    border-radius: 6px;
+    background: var(--code);
+    color: var(--code-ink);
+    font-size: 14.5px;
+    line-height: 1.7;
+  }
+  pre code { padding: 0; background: transparent; color: inherit; }
+  .math-block {
+    overflow-x: auto;
+    margin: 28px 0 34px;
+    padding: 24px 20px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    text-align: center;
+  }
+  .math-inline { white-space: nowrap; }
+  .chapter-toc {
+    margin: 38px 0 62px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .chapter-toc summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 17px 20px;
+    display: flex;
+    justify-content: space-between;
+    font-weight: 820;
+    background: var(--soft);
+  }
+  .chapter-toc summary::-webkit-details-marker { display: none; }
+  .chapter-toc summary span { color: var(--muted); font-size: 12px; letter-spacing: .06em; }
+  .toc-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 22px;
+    padding: 12px 20px 18px;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .toc-links a {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    text-decoration: none;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .chapter-end { margin-top: 80px; border-top: 1px solid var(--line); }
+  .page-progress {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--muted);
+    font-size: 13px;
+    margin: -28px 0 36px;
+  }
+  .page-progress__bar {
+    height: 5px;
+    flex: 1;
+    background: var(--line);
+  }
+  .page-progress__fill { height: 100%; background: var(--link); }
+  .course-footer {
+    border-top: 1px solid var(--line);
+    padding: 24px;
+    color: var(--muted);
+    text-align: center;
+    font-size: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --paper: #0d120f;
+      --surface: #131a15;
+      --soft: #19231c;
+      --ink: #e9efe9;
+      --muted: #a3aea5;
+      --line: #303b33;
+      --deep: #07100c;
+      --accent: #cfff45;
+      --link: #86d6b7;
+      --code: #080d0a;
+      --code-ink: #eaf4eb;
+      --shadow: rgba(0, 0, 0, .25);
+    }
+    .nav-next { color: #101510 !important; }
+  }
+  @media (max-width: 720px) {
+    body { font-size: 16.5px; line-height: 1.75; }
+    .doc-shell { width: min(100% - 28px, 980px); padding-top: 18px; }
+    .course-strip__inner { padding: 11px 16px; }
+    .chapter-nav { align-items: stretch; flex-direction: column; padding-bottom: 14px; margin-bottom: 38px; }
+    .chapter-nav__left, .chapter-nav__right { justify-content: space-between; }
+    article > h1 { font-size: clamp(35px, 9.7vw, 42px); line-height: 1.08; }
+    h2 { margin-top: 60px; }
+    .toc-links { grid-template-columns: 1fr; max-height: 360px; }
+    .math-block { padding: 18px 10px; }
+    table { display: block; overflow-x: auto; white-space: normal; }
+    .heading-anchor { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header class="course-strip">
+    <div class="course-strip__inner">
+      <span>LLM RL · 连续教程</span>
+      <a href="index.html">10 页完整问题链</a>
+    </div>
+  </header>
+  <main class="doc-shell">
+    <nav class="chapter-nav" aria-label="章节导航">
+      <div class="chapter-nav__left">
+        <a href="index.html" class="nav-index">课程目录</a>
+        <a href="06-group-relative-grpo.html">← 06 同题多采样</a>
+      </div>
+      <div class="chapter-nav__right">
+        <a class="nav-next" href="08-evaluation.html">08 可信评估 →</a>
+      </div>
+    </nav>
+    <div class="chapter-kicker">CHAPTER 07 · 工程落地 · 120 MIN</div>
+    <div class="page-progress">
+      <span>8 / 10</span>
+      <div class="page-progress__bar"><div class="page-progress__fill" style="width:80%"></div></div>
+      <span>80%</span>
+    </div>
+    <article>
+      <h1 id="第-7-章-把公式变成不会悄悄错位的训练代码">第 7 章：把公式变成不会悄悄错位的训练代码<a class="heading-anchor" href="#第-7-章-把公式变成不会悄悄错位的训练代码" aria-label="链接到本节">#</a></h1>
+    <details class="chapter-toc" open>
+      <summary>本章目录 <span>展开 / 收起</span></summary>
+      <nav class="toc-links" aria-label="本章目录">
+        <a href="#section-7-1">7.1 本章符号说明</a>
+<a href="#section-7-2">7.2 本章目标</a>
+<a href="#section-7-3">7.3 本章主线</a>
+<a href="#section-7-4">7.4 本章新增概念</a>
+<a href="#section-7-5">7.5 先固定一条 rollout record</a>
+<a href="#section-7-6">7.6 推荐的 batch shape</a>
+<a href="#section-7-7">7.7 logits、labels 与 token 为什么要错开一位</a>
+<a href="#section-7-8">7.8 completion mask 怎样构造</a>
+<a href="#section-7-9">7.9 masked mean 要先确定归一化对象</a>
+<a href="#section-7-10">7.10 old、current、reference 的数据生命周期</a>
+<a href="#section-7-11">7.11 把解析、核验和 shaping 分成三层</a>
+<a href="#section-7-12">7.12 group advantage 的稳健实现</a>
+<a href="#section-7-13">7.13 GR-REINFORCE 的最小训练骨架</a>
+<a href="#section-7-14">7.14 GRPO 多轮复用骨架</a>
+<a href="#section-7-15">7.15 八条必须自动检查的不变量</a>
+<a href="#section-7-16">7.16 从小到大的 smoke test</a>
+<a href="#section-7-17">7.17 常见症状到根因</a>
+<a href="#section-7-18">7.18 本章自测</a>
+<a href="#section-7-19">7.19 本章之后还缺什么</a>
+<a href="#section-7-20">7.20 对应资料</a>
+      </nav>
+    </details>
+<h2 id="section-7-1">7.1 本章符号说明<a class="heading-anchor" href="#section-7-1" aria-label="链接到本节">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>English</th>
+<th>本章含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi></mrow><annotation encoding="application/x-tex">B</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span></span></span></span></span></td>
+<td>prompt batch size</td>
+<td>一批不同 prompt 的数量</td>
+</tr>
+<tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>G</mi></mrow><annotation encoding="application/x-tex">G</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal">G</span></span></span></span></span></td>
+<td>group size</td>
+<td>每个 prompt 的 rollout 数</td>
+</tr>
+<tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mo>=</mo><mi>B</mi><mo>×</mo><mi>G</mi></mrow><annotation encoding="application/x-tex">N=B\times G</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.109em;">N</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.7667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal">G</span></span></span></span></span></td>
+<td>rollout count</td>
+<td>展平后的回答总数</td>
+</tr>
+<tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>L</mi></mrow><annotation encoding="application/x-tex">L</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal">L</span></span></span></span></span></td>
+<td>padded sequence length</td>
+<td>prompt 与 completion 拼接后的最大长度</td>
+</tr>
+<tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>T</mi><mi>i</mi></msub></mrow><annotation encoding="application/x-tex">T_i</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">i</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></span></td>
+<td>response length</td>
+<td>第 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>i</mi></mrow><annotation encoding="application/x-tex">i</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6595em;"></span><span class="mord mathnormal">i</span></span></span></span></span> 条回答的真实 completion token 数</td>
+</tr>
+<tr>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>m</mi><mrow><mi>i</mi><mo separator="true">,</mo><mi>t</mi></mrow></msub></mrow><annotation encoding="application/x-tex">m_{i,t}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7167em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal">m</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">i</span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span></span></td>
+<td>completion mask</td>
+<td>第 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>i</mi></mrow><annotation encoding="application/x-tex">i</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6595em;"></span><span class="mord mathnormal">i</span></span></span></span></span> 条回答第 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>t</mi></mrow><annotation encoding="application/x-tex">t</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6151em;"></span><span class="mord mathnormal">t</span></span></span></span></span> 个位置是否参与训练</td>
+</tr>
+<tr>
+<td><code>old_logp</code></td>
+<td>behavior log-prob</td>
+<td>生成 rollout 时采样 token 的对数概率</td>
+</tr>
+<tr>
+<td><code>ref_logp</code></td>
+<td>reference log-prob</td>
+<td>固定 reference 对相同 token 的对数概率</td>
+</tr>
+<tr>
+<td><code>current_logp</code></td>
+<td>current log-prob</td>
+<td>当前 actor 在更新时重新计算的对数概率</td>
+</tr>
+</tbody></table>
+<h2 id="section-7-2">7.2 本章目标<a class="heading-anchor" href="#section-7-2" aria-label="链接到本节">#</a></h2>
+<p>读完本章，你应该能够：</p>
+<ol>
+<li>为 rollout batch 写出清晰的张量 shape 与语义契约；</li>
+<li>正确对齐 logits、labels 与 sampled-token log-prob；</li>
+<li>只在 completion 的有效 token 上计算 policy loss；</li>
+<li>区分生成时冻结的数据与每次更新重新计算的数据；</li>
+<li>将 parser、verifier 和 reward shaping 分成可独立测试的层；</li>
+<li>写出 GR-REINFORCE 或 GRPO 的端到端训练骨架；</li>
+<li>用不变量和最小 smoke test 定位常见静默错误。</li>
+</ol>
+<h2 id="section-7-3">7.3 本章主线<a class="heading-anchor" href="#section-7-3" aria-label="链接到本节">#</a></h2>
+<p>前六章已经回答：</p>
+<ul>
+<li>模型为什么可以看作策略；</li>
+<li>最终 reward 怎样变成 log-prob 梯度；</li>
+<li>value、GAE 怎样降低方差；</li>
+<li>PPO 怎样受控复用 rollout；</li>
+<li>偏好和 verifier 怎样提供反馈；</li>
+<li>同题多采样怎样得到 group-relative advantage。</li>
+</ul>
+<p>现在不再引入新的优化算法，而是固定一份<strong>数据契约</strong>。大模型 RL 中最危险的 bug 往往不会报错：</p>
+<ul>
+<li>loss 正常下降，但 log-prob 与 token 错一位；</li>
+<li>prompt token 也被 reward 更新；</li>
+<li>padding 被当成回答；</li>
+<li>old policy 在每个 epoch 被重算，ratio 永远接近 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn></mrow><annotation encoding="application/x-tex">1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">1</span></span></span></span></span>；</li>
+<li>解析失败和答案错误混成同一指标；</li>
+<li>长回答仅因 token 更多而获得更大梯度。</li>
+</ul>
+<p>本章从“一条 rollout 到底要保存什么”开始，逐层落实。</p>
+<h2 id="section-7-4">7.4 本章新增概念<a class="heading-anchor" href="#section-7-4" aria-label="链接到本节">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>名词</th>
+<th>中文直觉</th>
+<th>本章中解决的问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>tensor contract</td>
+<td>张量的 shape、对齐与语义约定</td>
+<td>防止代码能运行但含义错位</td>
+</tr>
+<tr>
+<td>rollout record</td>
+<td>一条生成经验的冻结记录</td>
+<td>明确哪些量来自采样时刻</td>
+</tr>
+<tr>
+<td>completion mask</td>
+<td>只选择真实回答 token</td>
+<td>排除 prompt 与 padding</td>
+</tr>
+<tr>
+<td>sampled-token log-prob</td>
+<td>只取实际生成 token 的 log-prob</td>
+<td>从词表分布得到 policy loss 所需标量</td>
+</tr>
+<tr>
+<td>lifecycle invariant</td>
+<td>跨 rollout/update 阶段必须保持的事实</td>
+<td>防止 old、current、reference 混用</td>
+</tr>
+<tr>
+<td>smoke test</td>
+<td>最小可解释测试</td>
+<td>在大规模训练前验证方向和边界</td>
+</tr>
+</tbody></table>
+<h2 id="section-7-5">7.5 先固定一条 rollout record<a class="heading-anchor" href="#section-7-5" aria-label="链接到本节">#</a></h2>
+<p>对每条回答，建议至少保存：</p>
+<pre><code class="language-text">prompt_id
+prompt_token_ids
+response_token_ids
+input_ids              # prompt + response
+attention_mask
+completion_mask
+terminated
+truncated
+old_logp               # 每个有效 response token
+ref_logp               # 每个有效 response token
+raw_model_text
+parsed_answer
+parse_ok
+task_reward
+format_reward
+total_reward
+group_id
+advantage
+</code></pre>
+<p>若使用 critic，还要保存或计算：</p>
+<pre><code class="language-text">old_value
+advantage_per_token
+value_target
+</code></pre>
+<p>一条重要原则：</p>
+<blockquote>
+<p>rollout record 是“当时发生了什么”的历史记录，不应随着 optimizer step 被改写。</p>
+</blockquote>
+<p>尤其是 <code>old_logp</code>。它必须记录生成当前 token 的行为策略概率；若每次更新都用 current actor 重算，ratio 会失去数据来源的含义。</p>
+<h2 id="section-7-6">7.6 推荐的 batch shape<a class="heading-anchor" href="#section-7-6" aria-label="链接到本节">#</a></h2>
+<p>采样阶段保留 prompt 与 group 两个维度便于组内统计：</p>
+<table>
+<thead>
+<tr>
+<th>张量</th>
+<th>shape</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>input_ids</code></td>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mi>B</mi><mo separator="true">,</mo><mi>G</mi><mo separator="true">,</mo><mi>L</mi><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[B,G,L]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">G</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">L</span><span class="mclose">]</span></span></span></span></span></td>
+<td>prompt 与回答拼接并 padding</td>
+</tr>
+<tr>
+<td><code>attention_mask</code></td>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mi>B</mi><mo separator="true">,</mo><mi>G</mi><mo separator="true">,</mo><mi>L</mi><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[B,G,L]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">G</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">L</span><span class="mclose">]</span></span></span></span></span></td>
+<td>Transformer 可见的非 padding 位置</td>
+</tr>
+<tr>
+<td><code>completion_mask</code></td>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mi>B</mi><mo separator="true">,</mo><mi>G</mi><mo separator="true">,</mo><mi>L</mi><mo>−</mo><mn>1</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[B,G,L-1]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">G</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">L</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">1</span><span class="mclose">]</span></span></span></span></span></td>
+<td>每个 next-token label 是否属于真实回答</td>
+</tr>
+<tr>
+<td><code>old_logp</code></td>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mi>B</mi><mo separator="true">,</mo><mi>G</mi><mo separator="true">,</mo><mi>L</mi><mo>−</mo><mn>1</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[B,G,L-1]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">G</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">L</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">1</span><span class="mclose">]</span></span></span></span></span></td>
+<td>old 对每个 label token 的 log-prob</td>
+</tr>
+<tr>
+<td><code>ref_logp</code></td>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mi>B</mi><mo separator="true">,</mo><mi>G</mi><mo separator="true">,</mo><mi>L</mi><mo>−</mo><mn>1</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[B,G,L-1]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">G</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">L</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">1</span><span class="mclose">]</span></span></span></span></span></td>
+<td>reference 对相同 label 的 log-prob</td>
+</tr>
+<tr>
+<td><code>reward</code></td>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mi>B</mi><mo separator="true">,</mo><mi>G</mi><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[B,G]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">G</span><span class="mclose">]</span></span></span></span></span></td>
+<td>完整回答分数</td>
+</tr>
+<tr>
+<td><code>advantage</code></td>
+<td><span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mi>B</mi><mo separator="true">,</mo><mi>G</mi><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[B,G]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">G</span><span class="mclose">]</span></span></span></span></span> 或 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mi>B</mi><mo separator="true">,</mo><mi>G</mi><mo separator="true">,</mo><mi>L</mi><mo>−</mo><mn>1</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[B,G,L-1]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">G</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">L</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">1</span><span class="mclose">]</span></span></span></span></span></td>
+<td>序列级组优势或 token 级 GAE</td>
+</tr>
+</tbody></table>
+<p>组内标准化完成后，可将前两维展平为 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mo>=</mo><mi>B</mi><mo>×</mo><mi>G</mi></mrow><annotation encoding="application/x-tex">N=B\times G</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.109em;">N</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.7667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal">G</span></span></span></span></span>，进入 mini-batch 更新。无论怎样 reshape，都必须保证 <code>group_id</code> 与回答顺序一致。</p>
+<h2 id="section-7-7">7.7 logits、labels 与 token 为什么要错开一位<a class="heading-anchor" href="#section-7-7" aria-label="链接到本节">#</a></h2>
+<p>给定：</p>
+<pre><code class="language-text">input_ids = [BOS, 题, 目, :, 2, 3, ×, ..., EOS]
+</code></pre>
+<p>语言模型在位置 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>j</mi></mrow><annotation encoding="application/x-tex">j</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.854em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.0572em;">j</span></span></span></span></span> 的 logits 预测位置 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>j</mi><mo>+</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">j+1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.854em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.0572em;">j</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">1</span></span></span></span></span> 的 token。因此：</p>
+<pre><code class="language-python">logits = model(input_ids).logits       # [N, L, V]
+
+next_logits = logits[:, :-1, :]        # [N, L-1, V]
+next_token_ids = input_ids[:, 1:]      # [N, L-1]
+</code></pre>
+<p>实际采样 token 的 log-prob：</p>
+<pre><code class="language-python">all_logp = log_softmax(next_logits, dim=-1)
+
+sampled_logp = gather(
+    all_logp,
+    dim=-1,
+    index=next_token_ids.unsqueeze(-1),
+).squeeze(-1)                          # [N, L-1]
+</code></pre>
+<p>最小人工检查：</p>
+<pre><code class="language-text">next_logits 的第 j 个位置
+必须对应 next_token_ids 的第 j 个 token。
+</code></pre>
+<p>如果直接用 <code>logits</code> 与 <code>input_ids</code> 同位置 gather，模型实际上会用“读完 token 后的分布”给这个 token 打分，整体错一位。shape 完全合法，loss 也可能下降，所以必须用单元测试抓住。</p>
+<h2 id="section-7-8">7.8 completion mask 怎样构造<a class="heading-anchor" href="#section-7-8" aria-label="链接到本节">#</a></h2>
+<p>假设一条序列：</p>
+<pre><code class="language-text">[prompt token × P] [response token × T] [padding × K]
+</code></pre>
+<p>policy loss 只应覆盖 <code>response token × T</code>。在 next-token 对齐后的 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mi>L</mi><mo>−</mo><mn>1</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[L-1]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord mathnormal">L</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">1</span><span class="mclose">]</span></span></span></span></span> 轴上：</p>
+<pre><code class="language-python">completion_mask[j] = (
+    label_at_j_belongs_to_response
+    and not_padding
+)
+</code></pre>
+<p>需要排除：</p>
+<ul>
+<li>prompt 内 token：它们来自数据集，不是本次 policy 采取的动作；</li>
+<li>padding：只是 batch 对齐；</li>
+<li>某些实现中的固定模板 token：若并非由 actor 采样，也不应当作动作；</li>
+<li>终止后的任何位置。</li>
+</ul>
+<p>推荐用每条样本的 <code>prompt_length</code> 与 <code>response_length</code> 明确构造，而不是通过 token 值猜边界。pad token 可能与 eos token 共用 id，但语义不同。</p>
+<h2 id="section-7-9">7.9 masked mean 要先确定归一化对象<a class="heading-anchor" href="#section-7-9" aria-label="链接到本节">#</a></h2>
+<p>policy loss 常写成：</p>
+<div class="math-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi mathvariant="normal">masked_mean</mi><mo>⁡</mo><mo stretchy="false">(</mo><mi>z</mi><mo separator="true">,</mo><mi>m</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mrow><mo>∑</mo><mi>z</mi><mo>⋅</mo><mi>m</mi></mrow><mrow><mo>∑</mo><mi>m</mi></mrow></mfrac><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">\operatorname{masked\_mean}(z,m)
+=
+\frac{\sum z\cdot m}{\sum m}.</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1.06em;vertical-align:-0.31em;"></span><span class="mop"><span class="mord mathrm">masked_mean</span></span><span class="mopen">(</span><span class="mord mathnormal" style="margin-right:0.044em;">z</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">m</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:2.363em;vertical-align:-0.936em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.427em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mop op-symbol small-op" style="position:relative;top:0em;">∑</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">m</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mop op-symbol small-op" style="position:relative;top:0em;">∑</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal" style="margin-right:0.044em;">z</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord mathnormal">m</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.936em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mord">.</span></span></span></span></span></div>
+<p>但有两种不同的平均策略：</p>
+<h3 id="section-7-9-1">7.9.1 token-level mean<a class="heading-anchor" href="#section-7-9-1" aria-label="链接到本节">#</a></h3>
+<p>所有有效 token 一起平均。长回答在 batch 中贡献更多 token。</p>
+<h3 id="section-7-9-2">7.9.2 sequence-level mean<a class="heading-anchor" href="#section-7-9-2" aria-label="链接到本节">#</a></h3>
+<p>先对每条回答内部 token 取平均，再对回答取平均：</p>
+<div class="math-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mfrac><mn>1</mn><mi>N</mi></mfrac><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>N</mi></munderover><mfrac><mrow><munder><mo>∑</mo><mi>t</mi></munder><msub><mi>m</mi><mrow><mi>i</mi><mo separator="true">,</mo><mi>t</mi></mrow></msub><msub><mi>z</mi><mrow><mi>i</mi><mo separator="true">,</mo><mi>t</mi></mrow></msub></mrow><mrow><munder><mo>∑</mo><mi>t</mi></munder><msub><mi>m</mi><mrow><mi>i</mi><mo separator="true">,</mo><mi>t</mi></mrow></msub></mrow></mfrac><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">\frac1N
+\sum_{i=1}^{N}
+\frac{
+\sum_t m_{i,t}z_{i,t}
+}{
+\sum_t m_{i,t}
+}.</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:3.106em;vertical-align:-1.2777em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3214em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.109em;">N</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mop op-limits"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.8283em;"><span style="top:-1.8723em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">i</span><span class="mrel mtight">=</span><span class="mord mtight">1</span></span></span></span><span style="top:-3.05em;"><span class="pstrut" style="height:3.05em;"></span><span><span class="mop op-symbol large-op">∑</span></span></span><span style="top:-4.3em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.109em;">N</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.2777em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.4397em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mop"><span class="mop op-symbol small-op" style="position:relative;top:0em;">∑</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1308em;"><span style="top:-2.4003em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">t</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2997em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">m</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">i</span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.6897em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mop"><span class="mop op-symbol small-op" style="position:relative;top:0em;">∑</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1308em;"><span style="top:-2.4003em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">t</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2997em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">m</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">i</span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.044em;">z</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:-0.044em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">i</span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9857em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mord">.</span></span></span></span></span></div>
+<p>它让每条回答权重相同，通常更适合序列级 reward。两者没有普遍唯一答案，但必须写进实验配置；否则改变最大生成长度会悄悄改变优化目标。</p>
+<h2 id="section-7-10">7.10 old、current、reference 的数据生命周期<a class="heading-anchor" href="#section-7-10" aria-label="链接到本节">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>量</th>
+<th>rollout 时</th>
+<th>update epoch 1</th>
+<th>update epoch 2</th>
+<th>下一批 rollout</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>old_logp</code></td>
+<td>由行为策略计算并保存</td>
+<td>冻结</td>
+<td>仍冻结</td>
+<td>重新生成</td>
+</tr>
+<tr>
+<td><code>ref_logp</code></td>
+<td>固定 reference 计算</td>
+<td>冻结</td>
+<td>仍冻结</td>
+<td>对新 token 重算</td>
+</tr>
+<tr>
+<td><code>current_logp</code></td>
+<td>可与 old 相同</td>
+<td>重新前向</td>
+<td>再次重新前向</td>
+<td>变成新 old 的来源</td>
+</tr>
+<tr>
+<td>reward</td>
+<td>verifier/RM 计算</td>
+<td>冻结</td>
+<td>冻结</td>
+<td>对新回答重算</td>
+</tr>
+<tr>
+<td>advantage</td>
+<td>rollout 后计算</td>
+<td>冻结</td>
+<td>冻结</td>
+<td>对新组重算</td>
+</tr>
+</tbody></table>
+<p><code>advantage</code> 也不应在每个 PPO epoch 随 current model 重算。否则目标分布、value 和数据来源同时移动，ratio 的局部校正解释不再成立。</p>
+<p>如果使用 Actor–Critic，可在下一批 rollout 前用最新 critic 重新估值；对当前批的 value target 通常保持冻结。</p>
+<h2 id="section-7-11">7.11 把解析、核验和 shaping 分成三层<a class="heading-anchor" href="#section-7-11" aria-label="链接到本节">#</a></h2>
+<p>不要写一个返回单个 float 的巨型 <code>reward_fn(text)</code>。建议拆成：</p>
+<h3 id="section-7-11-1">7.11.1 parser<a class="heading-anchor" href="#section-7-11-1" aria-label="链接到本节">#</a></h3>
+<p>输入原始文本，输出结构化结果：</p>
+<pre><code class="language-python">ParseResult(
+    ok=True,
+    answer=&quot;391&quot;,
+    format=&quot;boxed&quot;,
+    error=None,
+)
+</code></pre>
+<h3 id="section-7-11-2">7.11.2 verifier<a class="heading-anchor" href="#section-7-11-2" aria-label="链接到本节">#</a></h3>
+<p>输入 prompt 元数据与结构化答案，只判断任务结果：</p>
+<pre><code class="language-python">VerifierResult(
+    correct=True,
+    expected=&quot;391&quot;,
+    observed=&quot;391&quot;,
+)
+</code></pre>
+<h3 id="section-7-11-3">7.11.3 reward composer<a class="heading-anchor" href="#section-7-11-3" aria-label="链接到本节">#</a></h3>
+<p>显式组合：</p>
+<pre><code class="language-python">task_reward = float(verifier.correct)
+format_reward = 0.1 * float(parse.format == &quot;boxed&quot;)
+length_penalty = ...
+
+total_reward = (
+    task_reward
+    + format_reward
+    - length_penalty
+)
+</code></pre>
+<p>训练日志必须同时记录每个分量。否则总 reward 上升时，你无法判断模型是真的更正确，还是只学会了格式或钻 parser 漏洞。</p>
+<h2 id="section-7-12">7.12 group advantage 的稳健实现<a class="heading-anchor" href="#section-7-12" aria-label="链接到本节">#</a></h2>
+<pre><code class="language-python">def group_advantage(reward, group_mask, eps=1e-6):
+    # reward, group_mask: [B, G]
+    count = group_mask.sum(dim=1, keepdim=True)
+    mean = (reward * group_mask).sum(dim=1, keepdim=True) / count
+
+    centered = (reward - mean) * group_mask
+    var = (centered.square().sum(dim=1, keepdim=True) / count)
+    std = sqrt(var)
+
+    advantage = centered / (std + eps)
+
+    # 零方差组没有组内排序信息
+    non_degenerate = (std &gt; eps).float()
+    return advantage * non_degenerate
+</code></pre>
+<p>还要记录：</p>
+<ul>
+<li><code>zero_variance_group_fraction</code>；</li>
+<li>每组有效样本数；</li>
+<li>每组 parse success 数；</li>
+<li>group reward mean 的分布。</li>
+</ul>
+<p>如果数据并行把同一 prompt 的回答拆到不同 device，组统计必须先跨设备聚合，否则每张卡得到的 baseline 不同。</p>
+<h2 id="section-7-13">7.13 GR-REINFORCE 的最小训练骨架<a class="heading-anchor" href="#section-7-13" aria-label="链接到本节">#</a></h2>
+<pre><code class="language-python">rollout = actor.generate_group(prompts, group_size=G)
+
+with torch.no_grad():
+    reward_parts = score_pipeline(rollout)
+    advantage = group_advantage(
+        reward_parts.total,
+        rollout.group_mask,
+    )
+    ref_logp = reference.sampled_logp(rollout)
+
+current_logp = actor.sampled_logp(rollout)
+seq_logp = masked_mean_per_sequence(
+    current_logp,
+    rollout.completion_mask,
+)
+
+policy_loss = -(advantage * seq_logp).mean()
+
+delta = ref_logp - current_logp
+sampled_kl = exp(delta) - delta - 1
+kl_loss = masked_mean(sampled_kl, rollout.completion_mask)
+
+loss = policy_loss + beta * kl_loss
+loss.backward()
+clip_grad_norm_(actor.parameters(), max_grad_norm)
+optimizer.step()
+</code></pre>
+<p>这份骨架只做一次更新，所以 <code>current_logp</code> 仍对应采样策略，不需要 importance ratio。</p>
+<h2 id="section-7-14">7.14 GRPO 多轮复用骨架<a class="heading-anchor" href="#section-7-14" aria-label="链接到本节">#</a></h2>
+<pre><code class="language-python">with torch.no_grad():
+    rollout.old_logp = old_policy.sampled_logp(rollout)
+    rollout.ref_logp = reference.sampled_logp(rollout)
+    rollout.advantage = group_advantage(...).detach()
+
+for epoch in range(update_epochs):
+    for mb in minibatches(rollout):
+        current_logp = actor.sampled_logp(mb)
+        ratio = exp(current_logp - mb.old_logp)
+
+        advantage = mb.advantage[..., None]
+        unclipped = ratio * advantage
+        clipped = clip(ratio, 1-eps, 1+eps) * advantage
+
+        pg_objective = minimum(unclipped, clipped)
+
+        delta = mb.ref_logp - current_logp
+        sampled_kl = exp(delta) - delta - 1
+
+        objective = pg_objective - beta * sampled_kl
+        loss = -masked_mean(objective, mb.completion_mask)
+
+        optimize(loss)
+
+        metrics = {
+            &quot;approx_kl_old&quot;: masked_mean(
+                mb.old_logp - current_logp,
+                mb.completion_mask,
+            ),
+            &quot;clip_fraction&quot;: masked_mean(
+                (abs(ratio - 1) &gt; eps).float(),
+                mb.completion_mask,
+            ),
+            &quot;ratio_p99&quot;: masked_quantile(ratio, 0.99),
+        }
+
+        if metrics[&quot;approx_kl_old&quot;] &gt; target_kl:
+            stop_reusing_this_rollout()
+</code></pre>
+<h2 id="section-7-15">7.15 八条必须自动检查的不变量<a class="heading-anchor" href="#section-7-15" aria-label="链接到本节">#</a></h2>
+<ol>
+<li>每条样本 <code>completion_mask.sum() == response_length</code>；</li>
+<li>mask 为 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn></mrow><annotation encoding="application/x-tex">0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span> 的位置改变 log-prob，不会改变 loss；</li>
+<li>rollout 刚生成时，current 与 old 参数相同，ratio 的有效位置应接近 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn></mrow><annotation encoding="application/x-tex">1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">1</span></span></span></span></span>；</li>
+<li>reference 与 actor 初始 checkpoint 相同时，训练开始的 sampled KL 应接近 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn></mrow><annotation encoding="application/x-tex">0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span>；</li>
+<li>每组 advantage 在有效回答上的均值接近 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn></mrow><annotation encoding="application/x-tex">0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span>；</li>
+<li>零方差组的 policy contribution 为 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn></mrow><annotation encoding="application/x-tex">0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span>；</li>
+<li><code>old_logp.requires_grad == False</code>，<code>advantage.requires_grad == False</code>；</li>
+<li>终止后的 token、padding 和 prompt token 的 actor gradient 为 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn></mrow><annotation encoding="application/x-tex">0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span>。</li>
+</ol>
+<p>这些断言比“跑起来了”更有价值。</p>
+<h2 id="section-7-16">7.16 从小到大的 smoke test<a class="heading-anchor" href="#section-7-16" aria-label="链接到本节">#</a></h2>
+<h3 id="test-1-单-token-人造策略">Test 1：单 token 人造策略<a class="heading-anchor" href="#test-1-单-token-人造策略" aria-label="链接到本节">#</a></h3>
+<p>词表只有 <code>A/B</code>，reward(<code>A</code>)=1，reward(<code>B</code>)=0。训练几十步后 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>P</mi><mo stretchy="false">(</mo><mi>A</mi><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">P(A)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">P</span><span class="mopen">(</span><span class="mord mathnormal">A</span><span class="mclose">)</span></span></span></span></span> 必须上升。</p>
+<h3 id="test-2-正负-advantage-梯度方向">Test 2：正负 advantage 梯度方向<a class="heading-anchor" href="#test-2-正负-advantage-梯度方向" aria-label="链接到本节">#</a></h3>
+<p>固定一条样本：</p>
+<ul>
+<li>advantage <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>&gt;</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">&gt;0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.5782em;vertical-align:-0.0391em;"></span><span class="mrel">&gt;</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span> 做一步后 sampled token log-prob 应上升；</li>
+<li>advantage <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>&lt;</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">&lt;0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.5782em;vertical-align:-0.0391em;"></span><span class="mrel">&lt;</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></span> 做一步后应下降。</li>
+</ul>
+<h3 id="test-3-mask">Test 3：mask<a class="heading-anchor" href="#test-3-mask" aria-label="链接到本节">#</a></h3>
+<p>改变 prompt token 和 padding 位置的 advantage/log-prob，loss 应完全不变。</p>
+<h3 id="test-4-ppo-clipping">Test 4：PPO clipping<a class="heading-anchor" href="#test-4-ppo-clipping" aria-label="链接到本节">#</a></h3>
+<p>手工构造 ratio <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1.5</mn></mrow><annotation encoding="application/x-tex">1.5</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">1.5</span></span></span></span></span>、advantage <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>+</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">+1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">+</span><span class="mord">1</span></span></span></span></span>、<span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>ϵ</mi><mo>=</mo><mn>0.2</mn></mrow><annotation encoding="application/x-tex">\epsilon=0.2</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.4306em;"></span><span class="mord mathnormal">ϵ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0.2</span></span></span></span></span>，objective 应等于 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1.2</mn></mrow><annotation encoding="application/x-tex">1.2</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">1.2</span></span></span></span></span>；构造 ratio <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0.5</mn></mrow><annotation encoding="application/x-tex">0.5</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0.5</span></span></span></span></span>、advantage <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">-1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">−</span><span class="mord">1</span></span></span></span></span>，应选择 <span class="math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>−</mo><mn>0.8</mn></mrow><annotation encoding="application/x-tex">-0.8</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">−</span><span class="mord">0.8</span></span></span></span></span>。</p>
+<h3 id="test-5-真实小任务过拟合">Test 5：真实小任务过拟合<a class="heading-anchor" href="#test-5-真实小任务过拟合" aria-label="链接到本节">#</a></h3>
+<p>只训练 8–32 道可验证算术题。模型应能明显提高训练题 reward；若连小数据都无法过拟合，先查数据对齐和 reward，不要直接扩集群。</p>
+<h3 id="test-6-held-out-与格式拆分">Test 6：held-out 与格式拆分<a class="heading-anchor" href="#test-6-held-out-与格式拆分" aria-label="链接到本节">#</a></h3>
+<p>训练 reward 上升后，分别检查：</p>
+<ul>
+<li>parse rate；</li>
+<li>parsed 样本条件正确率；</li>
+<li>端到端正确率；</li>
+<li>平均长度；</li>
+<li>reference KL。</li>
+</ul>
+<h2 id="section-7-17">7.17 常见症状到根因<a class="heading-anchor" href="#section-7-17" aria-label="链接到本节">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>优先检查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>reward 不变，loss 在下降</td>
+<td>verifier、group 全零方差、token 对齐</td>
+</tr>
+<tr>
+<td>ratio 永远为 1</td>
+<td>old_logp 是否被每步重算；optimizer 是否真的更新</td>
+</tr>
+<tr>
+<td>ratio 第一轮就很大</td>
+<td>old/current checkpoint 是否一致；logp 是否同一 token 对齐</td>
+</tr>
+<tr>
+<td>KL 为负且波动巨大</td>
+<td>是否把单样本 log-ratio误当 KL；符号方向</td>
+</tr>
+<tr>
+<td>输出越来越长</td>
+<td>sequence/token 归一化、长度 reward、截断处理</td>
+</tr>
+<tr>
+<td>格式正确率升高但任务正确率不升</td>
+<td>shaping 奖励压过 task reward</td>
+</tr>
+<tr>
+<td>多卡结果与单卡不同</td>
+<td>同 prompt group 是否跨卡聚合</td>
+</tr>
+<tr>
+<td>训练偶尔 NaN</td>
+<td>空 mask、全零组、极端 log-ratio、未裁剪梯度</td>
+</tr>
+</tbody></table>
+<h2 id="section-7-18">7.18 本章自测<a class="heading-anchor" href="#section-7-18" aria-label="链接到本节">#</a></h2>
+<ol>
+<li>为什么 logits 要取 <code>[:, :-1]</code>，labels 要取 <code>input_ids[:, 1:]</code>？</li>
+<li>prompt token 为什么不应进入 policy loss？</li>
+<li><code>old_logp</code> 和 <code>current_logp</code> 分别何时计算？为什么前者不能重算？</li>
+<li>token-level mean 与 sequence-level mean 对长回答的权重有何不同？</li>
+<li>为什么 parser、verifier、reward composer 应拆开测试？</li>
+<li>若训练题无法过拟合，最先查哪三类问题？</li>
+</ol>
+<h2 id="section-7-19">7.19 本章之后还缺什么<a class="heading-anchor" href="#section-7-19" aria-label="链接到本节">#</a></h2>
+<p>实现通过 smoke test，只能证明训练管线“可能按预期工作”。reward curve 上升仍不能证明模型真的更好：</p>
+<ul>
+<li>它可能只优化格式分；</li>
+<li>可能记住训练题；</li>
+<li>可能在 <code>pass@k</code> 上靠更多随机尝试；</li>
+<li>可能利用 verifier 漏洞；</li>
+<li>可能牺牲原有通用能力。</li>
+</ul>
+<p>第 8 章会把“模型变好了”拆成一套可证伪的评估协议。</p>
+<h2 id="section-7-20">7.20 对应资料<a class="heading-anchor" href="#section-7-20" aria-label="链接到本节">#</a></h2>
+<ul>
+<li><a href="https://huggingface.co/docs/trl/" target="_blank" rel="noreferrer">Hugging Face TRL Documentation</a></li>
+<li><a href="https://pytorch.org/docs/stable/generated/torch.gather.html" target="_blank" rel="noreferrer">PyTorch <code>gather</code></a></li>
+<li><a href="https://spinningup.openai.com/en/latest/algorithms/ppo.html" target="_blank" rel="noreferrer">OpenAI Spinning Up: PPO</a></li>
+<li><a href="https://arxiv.org/abs/2402.03300" target="_blank" rel="noreferrer">DeepSeekMath</a></li>
+</ul>
+
+    </article>
+    <div class="chapter-end"><nav class="chapter-nav" aria-label="章节导航">
+      <div class="chapter-nav__left">
+        <a href="index.html" class="nav-index">课程目录</a>
+        <a href="06-group-relative-grpo.html">← 06 同题多采样</a>
+      </div>
+      <div class="chapter-nav__right">
+        <a class="nav-next" href="08-evaluation.html">08 可信评估 →</a>
+      </div>
+    </nav></div>
+  </main>
+  <footer class="course-footer">从反馈接口到可靠训练系统 · 旧版四周讲义仍保留在站点归档中</footer>
+</body>
+</html>
